@@ -25,15 +25,18 @@ const TOKENS_FILE = 'google-tokens.json';
 const CREDS_FILE = 'credentials.json';
 
 let userDataPath = null;
+let appPath = null;
 let oauthClient = null;
 let tokens = null;
 let account = null;
 
-function credsPath()  { return path.join(userDataPath, CREDS_FILE); }
-function tokensPath() { return path.join(userDataPath, TOKENS_FILE); }
+function userCredsPath()   { return path.join(userDataPath, CREDS_FILE); }
+function bundledCredsPath(){ return path.join(appPath, CREDS_FILE); }
+function tokensPath()      { return path.join(userDataPath, TOKENS_FILE); }
 
-exports.init = async ({ userDataPath: udp }) => {
+exports.init = async ({ userDataPath: udp, appPath: ap }) => {
   userDataPath = udp;
+  appPath = ap;
   // Best-effort token rehydration so an existing connection survives restart.
   try {
     const raw = await fs.readFile(tokensPath(), 'utf8');
@@ -48,30 +51,45 @@ exports.init = async ({ userDataPath: udp }) => {
 exports.getStatus = () => ({
   connected: !!tokens,
   account,
-  hasCredentials: existsSync(credsPath()),
+  hasCredentials: existsSync(userCredsPath()) || existsSync(bundledCredsPath()),
 });
 
 function existsSync(p) {
   try { require('node:fs').accessSync(p); return true; } catch { return false; }
 }
 
+// Look for credentials in two places, in priority order:
+//   1. <userData>/credentials.json — per-user override.
+//   2. <appPath>/credentials.json  — bundled with the app distribution.
+//
+// Bundled creds make the friend experience zero-config: download the
+// app folder (which already contains credentials.json), `npm install`,
+// click Connect. The bundled file is gitignored so it never lands in
+// version control.
 async function loadCredentials() {
-  let raw;
-  try {
-    raw = await fs.readFile(credsPath(), 'utf8');
-  } catch (err) {
-    const helpfulPath = credsPath();
+  const candidates = [userCredsPath(), bundledCredsPath()];
+  let raw = null;
+  let found = null;
+  for (const p of candidates) {
+    try {
+      raw = await fs.readFile(p, 'utf8');
+      found = p;
+      break;
+    } catch {}
+  }
+  if (!raw) {
     throw new Error(
-      `Missing Google OAuth credentials at:\n  ${helpfulPath}\n\n` +
-      `Create a Google Cloud project, enable the Calendar API, make a Desktop OAuth client, ` +
-      `download the JSON, and save it as "credentials.json" at the path above. See the README for the four-minute walkthrough.`
+      `Missing Google OAuth credentials. Get It looked in:\n` +
+      `  ${candidates.join('\n  ')}\n\n` +
+      `If you're setting this up for someone else, drop a credentials.json next to main.js before sharing the app folder. ` +
+      `Otherwise, see the README for the one-time Google Cloud setup.`
     );
   }
   const parsed = JSON.parse(raw);
   const cfg = parsed.installed || parsed.web;
-  if (!cfg) throw new Error('credentials.json must contain an "installed" or "web" client.');
+  if (!cfg) throw new Error(`credentials.json at ${found} must contain an "installed" or "web" client.`);
   if (!cfg.client_id || !cfg.client_secret) {
-    throw new Error('credentials.json is missing client_id / client_secret.');
+    throw new Error(`credentials.json at ${found} is missing client_id / client_secret.`);
   }
   return cfg;
 }

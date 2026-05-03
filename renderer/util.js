@@ -1,8 +1,8 @@
 // Time helpers and small DOM/text utilities shared across screens.
 
 export const HOUR_HEIGHT = 44;
-export const START_HOUR = 7;
-export const END_HOUR = 19;          // 7 PM, exclusive
+export const START_HOUR = 0;         // Full day — the rail scrolls inside its panel.
+export const END_HOUR = 24;          // exclusive
 export const TOTAL_HOURS = END_HOUR - START_HOUR;
 export const TIMELINE_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT;
 
@@ -64,10 +64,50 @@ export function fmtTodayLabel(date = new Date()) {
   return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-// "now" line position in minutes from midnight, clamped to the visible rail.
+// "now" line position in minutes from midnight.
 export function nowMinutesClamped(date = new Date()) {
   const min = date.getHours() * 60 + date.getMinutes();
   return Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 1));
+}
+
+// Deterministic hash → OKLCH chip colors.
+// Same input always returns the same {bg, fg}.
+export function tagColor(tag) {
+  const s = String(tag || '').toLowerCase();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  const hue = Math.abs(h) % 360;
+  return {
+    bg: `oklch(90% 0.06 ${hue})`,
+    fg: `oklch(32% 0.08 ${hue})`,
+    hue,
+  };
+}
+
+// Parse a comma- or semicolon-separated tag string into a clean array.
+// Accepts arrays unchanged. De-dupes case-insensitively but preserves
+// the first-seen casing.
+export function normalizeTags(input) {
+  const list = Array.isArray(input)
+    ? input.map((s) => String(s ?? '').trim())
+    : String(input ?? '').split(/[,;]+/).map((s) => s.trim());
+  const seen = new Set();
+  const out = [];
+  for (const t of list) {
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
+}
+
+// Pick a random palette color, optionally avoiding ones already in use.
+export function randomColor(palette, used = []) {
+  const remaining = palette.filter((p) => !used.includes(p));
+  const pool = remaining.length ? remaining : palette;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // Lightweight HTML escape for any user-provided text shipped via template strings.

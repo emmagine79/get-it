@@ -51,6 +51,12 @@ function renderCurrentScreen() {
 function navigate(id) {
   if (!SCREENS[id]) return;
   if (id === 'add') resetAddForm();
+  // Reset per-screen one-shot flags so scroll-to-now / etc. fire again
+  // when the user re-enters the screen.
+  for (const key of Object.keys(SCREENS)) {
+    const el = document.getElementById(key);
+    if (el) delete el.dataset.didScroll;
+  }
   closeModal();
   setState({ currentScreen: id });
 }

@@ -8,7 +8,7 @@ import {
   HOUR_HEIGHT, START_HOUR, END_HOUR, TIMELINE_HEIGHT,
   timeToMinutes, minutesToTop, durationHeight, pxToMinutes,
   fmtClock, fmtClockShort, fmtRange, minutesToTime,
-  html, raw, esc, setHTML,
+  html, raw, esc, setHTML, tagColor, normalizeTags, randomColor,
 } from './util.js';
 import { wireDragSource, wireDropZone } from './dragdrop.js';
 import { openModal, closeModal } from './modal.js';
@@ -63,6 +63,26 @@ function blockEventHTML(state, evt) {
   `;
 }
 
+function tagsForTask(task) {
+  const list = Array.isArray(task.tags) && task.tags.length
+    ? task.tags
+    : task.tag ? [task.tag] : [];
+  return list;
+}
+
+function tagsHTML(task) {
+  const list = tagsForTask(task);
+  if (list.length === 0) return html`<span class="tag">task</span>`;
+  return html`
+    <div class="tags">
+      ${list.map((t) => {
+        const c = tagColor(t);
+        return html`<span class="tag" style="background:${raw(c.bg)};color:${raw(c.fg)};">${t}</span>`;
+      })}
+    </div>
+  `;
+}
+
 function taskCardHTML(task, opts = {}) {
   const draggable = opts.draggable !== false && !task.done;
   const badge = task.mode && MODE_BADGES[task.mode] ? MODE_BADGES[task.mode] : null;
@@ -78,7 +98,7 @@ function taskCardHTML(task, opts = {}) {
         ${task.start ? html`<p class="task-time">${fmtRange(task.start, task.end)}</p>` : ''}
         ${badge ? html`<span class="task-badge">${badge}</span>` : ''}
       </div>
-      <span class="tag">${task.tag ?? 'task'}</span>
+      ${tagsHTML(task)}
     </article>
   `;
 }
@@ -94,6 +114,14 @@ function timeRailHTML() {
     rows.push(html`<span>${h12} ${ampm}</span>`);
   }
   return rows;
+}
+
+// Scroll the rail+timeline so the current time sits about a third
+// from the top, leaving plenty of upcoming time visible below.
+function scrollTimelineToNow(scrollEl, nowMinutes) {
+  if (!scrollEl) return;
+  const target = minutesToTop(nowMinutes) - scrollEl.clientHeight / 3;
+  scrollEl.scrollTop = Math.max(0, target);
 }
 
 function attachTaskCommonHandlers(root) {
@@ -156,20 +184,14 @@ export function renderSchedule(root, state) {
 
   const markup = html`
     <div class="schedule-grid">
-      <div class="panel day-panel" aria-hidden="true">
-        <div class="time-rail">${timeRailHTML()}</div>
-      </div>
-
-      <div class="panel day-panel">
-        <div class="timeline" id="dropZone" style="min-height:${raw(TIMELINE_HEIGHT + 'px')};" aria-label="Schedule timeline">
-          <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClockShort(state.nowMinutes)}</div>
-          ${events.map((e) => blockEventHTML(state, e))}
-          ${blocks.map(blockTaskHTML)}
-          ${untimed.length === 0 && blocks.length === 0 && events.length === 0
-            ? html`<div class="drag-hint"><b>An empty day, softly</b>Add a task in <em>Quick add</em>, or connect a calendar to bring meetings in.</div>`
-            : untimed.length > 0
-              ? html`<div class="drag-hint"><b>Drop here to time-block</b>Drag a list task onto an open slot.</div>`
-              : ''}
+      <div class="panel timeline-pane">
+        <div class="timeline-scroll">
+          <div class="time-rail">${timeRailHTML()}</div>
+          <div class="timeline" id="dropZone" aria-label="Schedule timeline">
+            <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClockShort(state.nowMinutes)}</div>
+            ${events.map((e) => blockEventHTML(state, e))}
+            ${blocks.map(blockTaskHTML)}
+          </div>
         </div>
       </div>
 
@@ -188,6 +210,15 @@ export function renderSchedule(root, state) {
     </div>
   `;
   setHTML(root, markup);
+
+  // Center the current time in the visible scroll window (only the first
+  // render after a navigation — re-renders inside the same screen leave
+  // the user's scroll position alone).
+  const scroll = root.querySelector('.timeline-scroll');
+  if (scroll && root.dataset.didScroll !== '1') {
+    scrollTimelineToNow(scroll, state.nowMinutes);
+    root.dataset.didScroll = '1';
+  }
 
   root.querySelectorAll('.task.draggable').forEach((el) => wireDragSource(el));
   root.querySelectorAll('.block.planned').forEach((el) => wireDragSource(el));
@@ -277,19 +308,21 @@ export function renderBridge(root, state) {
     <div class="split-preview">
       <div class="panel mini-schedule">
         <div class="mini-title"><h3>Schedule</h3><span class="tag">time-blocked</span></div>
-        <div class="mini-track" id="bridgeDropZone" style="height:${raw(TIMELINE_HEIGHT + 'px')};">
-          ${events.map((e) => {
-            const color = calendarColor(state, e.calendarId);
-            const top = minutesToTop(timeToMinutes(e.start));
-            return html`<div class="mini-block cal-${color}" data-event-id="${e.id}" data-clickable="event" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(e.start))} ${e.title}</div>`;
-          })}
-          ${blocks.map((b) => {
-            const top = minutesToTop(timeToMinutes(b.start));
-            return html`<div class="mini-block planned" data-task-id="${b.id}" data-clickable="task" draggable="true" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(b.start))} ${b.title}</div>`;
-          })}
-          ${events.length + blocks.length === 0
-            ? html`<div class="empty-state" style="margin:16px;">Drop a list task here to time-block it.</div>`
-            : ''}
+        <div class="mini-scroll" data-role="bridge-scroll">
+          <div class="mini-track" id="bridgeDropZone">
+            ${events.map((e) => {
+              const color = calendarColor(state, e.calendarId);
+              const top = minutesToTop(timeToMinutes(e.start));
+              return html`<div class="mini-block cal-${color}" data-event-id="${e.id}" data-clickable="event" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(e.start))} ${e.title}</div>`;
+            })}
+            ${blocks.map((b) => {
+              const top = minutesToTop(timeToMinutes(b.start));
+              return html`<div class="mini-block planned" data-task-id="${b.id}" data-clickable="task" draggable="true" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(b.start))} ${b.title}</div>`;
+            })}
+            ${events.length + blocks.length === 0
+              ? html`<div class="empty-state" style="margin:16px;">Drop a list task here to time-block it.</div>`
+              : ''}
+          </div>
         </div>
       </div>
 
@@ -303,6 +336,12 @@ export function renderBridge(root, state) {
     </div>
   `;
   setHTML(root, markup);
+
+  const bridgeScroll = root.querySelector('[data-role="bridge-scroll"]');
+  if (bridgeScroll && root.dataset.didScroll !== '1') {
+    scrollTimelineToNow(bridgeScroll, state.nowMinutes);
+    root.dataset.didScroll = '1';
+  }
 
   root.querySelectorAll('.task.draggable, .mini-block.planned').forEach((el) => wireDragSource(el));
 
@@ -339,6 +378,7 @@ export function renderBridge(root, state) {
 const ADD_FORM_DEFAULT = {
   title: '',
   note: '',
+  tags: '',                      // raw comma-separated input
   mode: 'task',                  // 'task' | 'block' | 'maybe'
   bucket: 'list',                // 'list' | 'morning' | 'afternoon' | 'no-pressure'
   startHour: 9,
@@ -393,6 +433,10 @@ export function renderAdd(root, state) {
             <textarea class="input" id="note" name="note" placeholder="Optional context...">${d.note}</textarea>
           </div>
           <div class="field">
+            <label for="tagsInput">Tags <span class="muted" style="font-weight:400;">— comma-separated, each gets its own color</span></label>
+            <input class="input" id="tagsInput" name="tags" value="${d.tags}" placeholder="errand, focus, home">
+          </div>
+          <div class="field">
             <label>Bucket</label>
             <div class="choice-row" data-group="bucket">
               <button type="button" data-value="list"        class="choice ${d.bucket==='list'?'selected':''}">Today's list</button>
@@ -418,7 +462,12 @@ export function renderAdd(root, state) {
             ${d.mode === 'maybe' ? html`<span class="task-badge">maybe</span>` : ''}
             ${d.mode === 'block' ? html`<span class="task-badge">time block</span>` : ''}
           </div>
-          <span class="tag">${d.bucket === 'list' ? 'task' : d.bucket}</span>
+          ${tagsHTML({
+            tags: normalizeTags([
+              ...normalizeTags(d.tags),
+              ...(d.bucket && d.bucket !== 'list' ? [d.bucket] : []),
+            ]),
+          })}
         </article>
       </aside>
     </div>
@@ -433,6 +482,9 @@ export function renderAdd(root, state) {
   });
   form.querySelector('#note').addEventListener('input', (e) => {
     addFormDraft.note = e.target.value;
+  });
+  form.querySelector('#tagsInput').addEventListener('input', (e) => {
+    addFormDraft.tags = e.target.value;
   });
   ['startHour','startMinute','durationMinutes'].forEach((id) => {
     const el = form.querySelector('#' + id);
@@ -471,12 +523,18 @@ export function renderAdd(root, state) {
       window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Give it a name first.' }));
       return;
     }
-    const tag = addFormDraft.bucket === 'list' ? 'task' : addFormDraft.bucket;
+    // Tags from the free-form input, plus the bucket auto-tag if it's
+    // not the default. Normalised + deduped (case-insensitive).
+    const userTags = normalizeTags(addFormDraft.tags);
+    const bucketTag = addFormDraft.bucket && addFormDraft.bucket !== 'list'
+      ? [addFormDraft.bucket]
+      : [];
+    const tags = normalizeTags([...userTags, ...bucketTag]);
 
     const base = {
       title,
       note: addFormDraft.note || '',
-      tag,
+      tags,
       mode: addFormDraft.mode,
       bucket: addFormDraft.bucket,
     };
@@ -648,10 +706,11 @@ export function renderSettings(root, state) {
         <div class="panel-title"><h3>Choose color</h3><span class="count">manual</span></div>
         ${selected ? html`
           <p style="margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45;">
-            Editing <strong>${shortName}</strong>. Colors are never auto-assigned. Pick once, change anytime.
+            Editing <strong>${shortName}</strong>. Pick a color, or hit the rainbow swatch to roll one at random.
           </p>
           <div class="palette-row">
             ${PALETTE.map((p) => html`<span class="color-dot ${p === selected.color ? 'selected' : ''}" data-action="pick-color" data-color="${p}" style="background: var(--${raw(esc(p))});" title="${p}"></span>`)}
+            <span class="color-dot random" data-action="pick-random" title="random"></span>
           </div>
           ${softNoteHTML('Layer preview', `Events from ${shortName} appear as soft ${selected.color} blocks with a "Calendar" label and no edit handles.`)}
         ` : html`
@@ -702,6 +761,16 @@ function attachSettingsHandlers(root) {
       setCalendarColor(id, swatch.dataset.color);
       window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Color updated.' }));
     });
+  });
+
+  root.querySelector('[data-action="pick-random"]')?.addEventListener('click', () => {
+    const state = getState();
+    const id = root.dataset.selectedCalendar || state.calendars[0]?.id;
+    if (!id) return;
+    const used = state.calendars.filter((c) => c.id !== id).map((c) => c.color);
+    const next = randomColor(PALETTE, used);
+    setCalendarColor(id, next);
+    window.dispatchEvent(new CustomEvent('app:toast', { detail: `Rolled ${next}.` }));
   });
 
   root.querySelector('[data-action="connect-google"]')?.addEventListener('click', () => {
@@ -795,7 +864,7 @@ function showTaskEditor(task) {
   const draft = {
     title: task.title,
     note: task.note || '',
-    tag: task.tag || 'task',
+    tags: tagsForTask(task).join(', '),
     mode: task.mode || 'task',
     start: task.start || '',
     end: task.end || '',
@@ -830,8 +899,8 @@ function showTaskEditor(task) {
         </div>
       ` : ''}
       <div class="field">
-        <label>Tag</label>
-        <input class="input" name="tag" value="${draft.tag}">
+        <label>Tags <span class="muted" style="font-weight:400;">— comma-separated</span></label>
+        <input class="input" name="tags" value="${draft.tags}" placeholder="errand, focus">
       </div>
       <div class="modal-footer">
         <button type="button" class="button danger" data-action="delete">Delete</button>
@@ -848,23 +917,12 @@ function showTaskEditor(task) {
     onMount: (modalEl, { close, replace }) => {
       const form = modalEl.querySelector('form');
 
-      const refresh = () => {
-        Object.assign(draft, {
-          title: form.querySelector('[name="title"]').value,
-          note:  form.querySelector('[name="note"]').value,
-          tag:   form.querySelector('[name="tag"]').value,
-          start: form.querySelector('[name="start"]')?.value || '',
-          end:   form.querySelector('[name="end"]')?.value   || '',
-        });
-        replace(buildBody());
-      };
-
       form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
         btn.addEventListener('click', () => {
           // Capture other field edits before re-render.
           draft.title = form.querySelector('[name="title"]').value;
           draft.note  = form.querySelector('[name="note"]').value;
-          draft.tag   = form.querySelector('[name="tag"]').value;
+          draft.tags  = form.querySelector('[name="tags"]').value;
           draft.start = form.querySelector('[name="start"]')?.value || draft.start;
           draft.end   = form.querySelector('[name="end"]')?.value   || draft.end;
           draft.mode  = btn.dataset.value;
@@ -887,7 +945,8 @@ function showTaskEditor(task) {
         const patch = {
           title,
           note: form.querySelector('[name="note"]').value,
-          tag: form.querySelector('[name="tag"]').value || 'task',
+          tags: normalizeTags(form.querySelector('[name="tags"]').value),
+          tag: undefined,
           mode: draft.mode,
         };
         if (draft.mode === 'block') {

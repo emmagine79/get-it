@@ -22,34 +22,39 @@ The app launches at 1200×800. The first time you run it, you'll land on the **F
 
 ## Connect Google Calendar
 
-Get It uses your own Google Cloud OAuth client so credentials never live in this repo. One-time setup:
+There are two paths, depending on who's using the app.
 
-1. **Create a Google Cloud project.**
-   Go to <https://console.cloud.google.com/projectcreate>, name it `Get It` (or anything), and create.
-2. **Enable the Calendar API.**
-   In the project, open <https://console.cloud.google.com/apis/library/calendar-json.googleapis.com> and click **Enable**.
-3. **Configure the OAuth consent screen.**
-   Open **APIs & Services → OAuth consent screen**.
-   - Choose **External**.
-   - Fill in the app name (`Get It`), your email as user support contact, and your email as developer contact.
-   - On **Scopes**, add `https://www.googleapis.com/auth/calendar.readonly`.
-   - On **Test users**, add your own Google email.
-4. **Create OAuth credentials.**
-   Open **APIs & Services → Credentials → Create credentials → OAuth client ID**.
-   - Application type: **Desktop app**
-   - Name: `Get It desktop`
-   - Click **Create**, then **Download JSON**.
-5. **Drop the JSON into the app's data folder.**
-   Rename the downloaded file to `credentials.json` and put it at:
-   - **macOS:** `~/Library/Application Support/get-it/credentials.json`
+### For your friend (zero-config)
+
+If you've bundled `credentials.json` next to `main.js` (see the Distribution section below), they don't need to do anything except:
+
+1. Download the app folder, run `npm install` once, then `npm start`.
+2. Click **Connect Google Calendar** on the first-run screen.
+3. Sign in with their Google account in the browser tab that opens.
+4. Done. Today's events appear as read-only blocks.
+
+### For you (one-time Google Cloud setup, ~four minutes)
+
+Do this once. Afterward you can either keep `credentials.json` in your user-data folder for personal use, or copy it next to `main.js` to ship the app to someone else.
+
+1. **Create a Google Cloud project** at <https://console.cloud.google.com/projectcreate>.
+2. **Enable the Calendar API** at <https://console.cloud.google.com/apis/library/calendar-json.googleapis.com>.
+3. **Configure the OAuth consent screen**:
+   - **External** user type.
+   - Add `https://www.googleapis.com/auth/calendar.readonly` as a scope.
+   - In **Test users**, add every Google account that will use the app (yours, your friend's). The Testing-mode cap is 100 users, which is plenty.
+4. **Create credentials** → **OAuth client ID** → **Desktop app**. Download the JSON.
+5. Save the JSON file as `credentials.json`. Put it in **either**:
+   - `<repo>/credentials.json` — bundled with the app, shippable.
+   - **macOS:** `~/Library/Application Support/get-it/credentials.json` — personal, never bundled.
    - **Windows:** `%APPDATA%\get-it\credentials.json`
    - **Linux:** `~/.config/get-it/credentials.json`
 
-   (The folder is created the first time you launch the app.)
+   The app checks the user-data path first, then falls back to the bundled one. Both paths are `.gitignore`d so credentials never end up in the repo.
 
-6. **Click "Connect Google Calendar"** in Get It. Your default browser opens, you grant access, and the redirect lands back in the app. Today's events sync immediately and appear as read-only blocks. Tokens are stored next to `credentials.json` as `google-tokens.json`.
+6. Click **Connect Google Calendar** in the app. The system browser opens, you grant access, the redirect lands back, and a sync runs immediately.
 
-If anything goes wrong, the connect screen shows the exact error. The most common one is a missing `credentials.json` — the message includes the path it expected.
+If anything goes wrong, the connect screen prints the exact error and the paths it tried.
 
 ## What's inside
 

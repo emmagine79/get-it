@@ -26,3 +26,7 @@ Thumbs.db
 
 # Local Claude tooling
 .claude/
+
+# Bundled Google OAuth credentials and tokens — never commit these.
+credentials.json
+google-tokens.json

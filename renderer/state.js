@@ -3,6 +3,31 @@ import { fmtTodayLabel, nowMinutesClamped } from './util.js';
 
 const STORAGE_KEY = 'get-it-state-v2';
 
+// Migrate older persisted state in place. Idempotent — safe to run on
+// already-current state. Bumps schemaVersion to the latest sampleData.
+function migrate(parsed) {
+  if (!parsed || typeof parsed !== 'object') return parsed;
+
+  // v2 → v3: `task.tag` (string) became `task.tags` (string[]).
+  if ((parsed.schemaVersion || 1) < 3 && Array.isArray(parsed.tasks)) {
+    parsed.tasks = parsed.tasks.map((t) => {
+      if (t && t.tag != null && !Array.isArray(t.tags)) {
+        const tags = String(t.tag)
+          .split(/[,;]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const next = { ...t, tags };
+        delete next.tag;
+        return next;
+      }
+      return t;
+    });
+  }
+
+  parsed.schemaVersion = sampleData.schemaVersion;
+  return parsed;
+}
+
 function clone(obj) {
   return typeof structuredClone === 'function'
     ? structuredClone(obj)
@@ -20,8 +45,7 @@ function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return fresh();
-    const parsed = JSON.parse(raw);
-    if (parsed.schemaVersion !== sampleData.schemaVersion) return fresh();
+    const parsed = migrate(JSON.parse(raw));
     return {
       ...fresh(),
       ...parsed,
@@ -154,18 +178,28 @@ export function setCalendarVisible(calId, visible) {
 }
 
 // Replace calendars + events wholesale (used after a Google sync).
-// Preserves user-chosen color and visibility for known calendars.
+// Preserves user-chosen color and visibility for known calendars; new
+// calendars get a random palette color that isn't already in use by
+// another calendar, falling back to repeats once the palette is full.
+import { PALETTE } from './data.js';
+import { randomColor } from './util.js';
+
 export function replaceCalendarsAndEvents(calendars, events) {
   setState((s) => {
     const previous = new Map(s.calendars.map((c) => [c.id, c]));
-    const palette = ['sage', 'lavender', 'sky', 'rose', 'amber'];
-    const merged = calendars.map((c, i) => {
+    const used = [...previous.values()].map((c) => c.color);
+    const merged = calendars.map((c) => {
       const prev = previous.get(c.id);
+      let color = prev?.color;
+      if (!color) {
+        color = randomColor(PALETTE, used);
+        used.push(color);
+      }
       return {
         id: c.id,
         name: c.name,
         subtitle: c.subtitle ?? prev?.subtitle ?? '',
-        color: prev?.color || palette[i % palette.length],
+        color,
         visible: prev ? prev.visible : true,
       };
     });

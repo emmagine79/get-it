@@ -9,11 +9,18 @@
   --font-display: 'Tiempos Headline', 'Newsreader', 'Iowan Old Style', Georgia, serif;
   --font-body:    'Söhne', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Inter, sans-serif;
 
-  --lavender: oklch(75% 0.08 300);
-  --sage:     oklch(71% 0.07 145);
-  --sky:      oklch(74% 0.08 225);
-  --rose:     oklch(76% 0.09 18);
-  --amber:    oklch(79% 0.11 75);
+  --lavender:   oklch(75% 0.08 300);
+  --sage:       oklch(71% 0.07 145);
+  --sky:        oklch(74% 0.08 225);
+  --rose:       oklch(76% 0.09 18);
+  --amber:      oklch(79% 0.11 75);
+  --peach:      oklch(80% 0.10 50);
+  --mint:       oklch(80% 0.07 175);
+  --periwinkle: oklch(76% 0.09 265);
+  --blush:      oklch(82% 0.07 0);
+  --cocoa:      oklch(60% 0.06 50);
+  --lemon:      oklch(88% 0.13 95);
+  --aqua:       oklch(80% 0.08 200);
 
   --shadow:      0 20px 60px oklch(42% 0.03 45 / 0.14);
   --soft-shadow: 0 10px 35px oklch(42% 0.03 45 / 0.09);
@@ -256,35 +263,69 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 
 .schedule-grid {
   display: grid;
-  grid-template-columns: 92px 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 18px;
   align-items: start;
 }
 
-.day-panel {
+/* The whole rail + timeline scrolls inside this pane. The visible
+   height is fixed; scrolling the pane scrolls both columns together. */
+.timeline-pane {
   position: relative;
-  min-height: 596px;
-  padding: 18px 18px 18px 0;
+  height: 600px;
+  padding: 0;
   overflow: hidden;
+}
+
+.timeline-scroll {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 14px;
+  padding: 14px 14px 14px 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+/* Fade the very top and bottom of the scroll area so blocks don't
+   collide with the panel border edge as they scroll past. */
+.timeline-pane::before,
+.timeline-pane::after {
+  content: "";
+  position: absolute;
+  left: 14px; right: 14px;
+  height: 14px;
+  pointer-events: none;
+  z-index: 4;
+}
+.timeline-pane::before {
+  top: 0;
+  background: linear-gradient(180deg, oklch(100% 0 0 / 0.8), transparent);
+}
+.timeline-pane::after {
+  bottom: 0;
+  background: linear-gradient(0deg, oklch(100% 0 0 / 0.8), transparent);
 }
 
 .time-rail {
   display: grid;
-  grid-template-rows: repeat(12, var(--hour-height));
+  grid-template-rows: repeat(24, var(--hour-height));
   padding-top: 8px;
   color: var(--muted);
   font-size: 12px;
   text-align: right;
+  height: calc(var(--hour-height) * 24);
 }
 
 .timeline {
   position: relative;
-  min-height: calc(var(--hour-height) * 12);
+  height: calc(var(--hour-height) * 24);
   border-left: 1px solid var(--border);
   background:
     repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--hour-height) - 1px), var(--border) var(--hour-height)),
     linear-gradient(180deg, oklch(99% 0.007 70), oklch(97% 0.015 80));
-  border-radius: 0 16px 16px 0;
+  border-radius: 16px;
   overflow: hidden;
   transition: background 180ms ease, box-shadow 180ms ease;
 }
@@ -338,12 +379,19 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   color: oklch(38% 0.02 50 / 0.78);
   font-weight: 600;
 }
-.block.planned   { background: oklch(91% 0.035 78); }
-.block.cal-sage      { background: oklch(91% 0.034 145); }
-.block.cal-lavender  { background: color-mix(in oklch, var(--lavender) 28%, white); }
-.block.cal-sky       { background: color-mix(in oklch, var(--sky) 28%, white); }
-.block.cal-rose      { background: color-mix(in oklch, var(--rose) 28%, white); }
-.block.cal-amber     { background: color-mix(in oklch, var(--amber) 32%, white); }
+.block.planned             { background: oklch(91% 0.035 78); }
+.block.cal-sage            { background: oklch(91% 0.034 145); }
+.block.cal-lavender        { background: color-mix(in oklch, var(--lavender) 28%, white); }
+.block.cal-sky             { background: color-mix(in oklch, var(--sky) 28%, white); }
+.block.cal-rose            { background: color-mix(in oklch, var(--rose) 28%, white); }
+.block.cal-amber           { background: color-mix(in oklch, var(--amber) 32%, white); }
+.block.cal-peach           { background: color-mix(in oklch, var(--peach) 30%, white); }
+.block.cal-mint            { background: color-mix(in oklch, var(--mint) 30%, white); }
+.block.cal-periwinkle      { background: color-mix(in oklch, var(--periwinkle) 28%, white); }
+.block.cal-blush           { background: color-mix(in oklch, var(--blush) 30%, white); }
+.block.cal-cocoa           { background: color-mix(in oklch, var(--cocoa) 26%, white); color: oklch(28% 0.04 50); }
+.block.cal-lemon           { background: color-mix(in oklch, var(--lemon) 36%, white); }
+.block.cal-aqua            { background: color-mix(in oklch, var(--aqua) 30%, white); }
 
 .block.read-only { cursor: default; }
 .block.read-only::after {
@@ -435,6 +483,38 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   font-size: 11px; white-space: nowrap;
 }
 
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-end;
+  justify-content: flex-end;
+  max-width: 160px;
+}
+.tags .tag { font-weight: 600; }
+
+.task .tags { margin-left: auto; }
+
+.color-dot.random {
+  background:
+    conic-gradient(from 0deg,
+      var(--rose), var(--amber), var(--lemon), var(--mint),
+      var(--aqua), var(--sky), var(--periwinkle), var(--lavender),
+      var(--blush), var(--peach), var(--rose));
+  position: relative;
+}
+.color-dot.random::after {
+  content: "?";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+  text-shadow: 0 1px 2px oklch(0% 0 0 / 0.4);
+}
+
 .soft-note {
   padding: 16px;
   border-radius: 16px;
@@ -482,14 +562,21 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   align-items: start;
 }
 .mini-schedule, .mini-list { min-height: 590px; padding: 16px; }
+.mini-schedule { display: flex; flex-direction: column; }
 .mini-title {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 14px;
 }
 .mini-title h3 { font-size: 25px; }
+.mini-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  border-radius: 15px;
+  scrollbar-gutter: stable;
+}
 .mini-track {
   position: relative;
-  height: calc(var(--hour-height) * 12);
+  height: calc(var(--hour-height) * 24);
   border-radius: 15px;
   background: repeating-linear-gradient(to bottom, oklch(98% 0.008 70), oklch(98% 0.008 70) calc(var(--hour-height) - 1px), var(--border) var(--hour-height));
   overflow: hidden;
@@ -501,12 +588,19 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   border-radius: 13px;
   font-size: 12px; font-weight: 700;
 }
-.mini-block.planned   { background: oklch(91% 0.035 78); }
-.mini-block.cal-sage      { background: oklch(91% 0.034 145); }
-.mini-block.cal-lavender  { background: color-mix(in oklch, var(--lavender) 28%, white); }
-.mini-block.cal-sky       { background: color-mix(in oklch, var(--sky) 28%, white); }
-.mini-block.cal-rose      { background: color-mix(in oklch, var(--rose) 28%, white); }
-.mini-block.cal-amber     { background: color-mix(in oklch, var(--amber) 32%, white); }
+.mini-block.planned             { background: oklch(91% 0.035 78); }
+.mini-block.cal-sage            { background: oklch(91% 0.034 145); }
+.mini-block.cal-lavender        { background: color-mix(in oklch, var(--lavender) 28%, white); }
+.mini-block.cal-sky             { background: color-mix(in oklch, var(--sky) 28%, white); }
+.mini-block.cal-rose            { background: color-mix(in oklch, var(--rose) 28%, white); }
+.mini-block.cal-amber           { background: color-mix(in oklch, var(--amber) 32%, white); }
+.mini-block.cal-peach           { background: color-mix(in oklch, var(--peach) 30%, white); }
+.mini-block.cal-mint            { background: color-mix(in oklch, var(--mint) 30%, white); }
+.mini-block.cal-periwinkle      { background: color-mix(in oklch, var(--periwinkle) 28%, white); }
+.mini-block.cal-blush           { background: color-mix(in oklch, var(--blush) 30%, white); }
+.mini-block.cal-cocoa           { background: color-mix(in oklch, var(--cocoa) 26%, white); }
+.mini-block.cal-lemon           { background: color-mix(in oklch, var(--lemon) 36%, white); }
+.mini-block.cal-aqua            { background: color-mix(in oklch, var(--aqua) 30%, white); }
 
 .bridge-card {
   margin: 12px 0;

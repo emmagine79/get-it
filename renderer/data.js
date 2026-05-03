@@ -2,10 +2,25 @@
 // real day populates here from Google Calendar (read-only) and from the
 // Quick Add flow.
 
-export const PALETTE = ['sage', 'lavender', 'sky', 'rose', 'amber'];
+// Each palette entry is a CSS variable name available in :root.
+// `random` is a special token in the picker, not a color itself.
+export const PALETTE = [
+  'sage',
+  'lavender',
+  'sky',
+  'rose',
+  'amber',
+  'peach',
+  'mint',
+  'periwinkle',
+  'blush',
+  'cocoa',
+  'lemon',
+  'aqua',
+];
 
 export const sampleData = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   currentScreen: 'connect',
   hasCompletedFirstRun: false,
 
