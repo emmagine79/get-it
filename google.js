@@ -18,11 +18,14 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const http = require('node:http');
+const crypto = require('node:crypto');
 const { google } = require('googleapis');
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 const TOKENS_FILE = 'google-tokens.json';
 const CREDS_FILE = 'credentials.json';
+const TOKEN_FILE_MODE = 0o600;
+const OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 
 let userDataPath = null;
 let appPath = null;
@@ -100,7 +103,7 @@ function buildClient(cfg, redirectUri) {
 
 // Spin up a one-shot HTTP server on a random port, return the URL & a promise
 // that resolves with the auth code when the user completes the redirect.
-function startCallbackServer() {
+function startCallbackServer(expectedState, timeoutMs = OAUTH_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const server = http.createServer();
     server.on('error', reject);
@@ -108,6 +111,10 @@ function startCallbackServer() {
     let codePromiseResolve;
     let codePromiseReject;
     const codePromise = new Promise((rs, rj) => { codePromiseResolve = rs; codePromiseReject = rj; });
+    const timeout = setTimeout(() => {
+      codePromiseReject(new Error('Google OAuth timed out. Try Connect again.'));
+      try { server.close(); } catch {}
+    }, timeoutMs);
 
     server.on('request', (req, res) => {
       try {
@@ -119,11 +126,16 @@ function startCallbackServer() {
         }
         const code = url.searchParams.get('code');
         const error = url.searchParams.get('error');
+        const state = url.searchParams.get('state');
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         if (error) {
           res.statusCode = 400;
           res.end(htmlPage('Connection cancelled', `Google reported: <code>${escapeHtml(error)}</code>. You can close this tab and try again in Get It.`));
           codePromiseReject(new Error(`Google OAuth error: ${error}`));
+        } else if (state !== expectedState) {
+          res.statusCode = 400;
+          res.end(htmlPage('Connection rejected', 'The sign-in response did not match this connection attempt. Return to Get It and try again.'));
+          codePromiseReject(new Error('Google OAuth state mismatch. Try Connect again.'));
         } else if (!code) {
           res.statusCode = 400;
           res.end(htmlPage('No authorization code', 'The redirect did not contain a code. Try Connect again.'));
@@ -136,6 +148,7 @@ function startCallbackServer() {
         codePromiseReject(err);
       } finally {
         // Allow the response to flush before we tear down.
+        clearTimeout(timeout);
         setTimeout(() => { try { server.close(); } catch {} }, 200);
       }
     });
@@ -164,21 +177,26 @@ function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-exports.connect = async ({ openExternal }) => {
-  const cfg = await loadCredentials();
-  const { redirectUri, codePromise, close } = await startCallbackServer();
-  oauthClient = buildClient(cfg, redirectUri);
-
-  const authUrl = oauthClient.generateAuthUrl({
+function buildAuthUrlOptions(state) {
+  return {
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
-  });
+    state,
+  };
+}
 
-  await openExternal(authUrl);
+exports.connect = async ({ openExternal }) => {
+  const cfg = await loadCredentials();
+  const state = crypto.randomBytes(24).toString('base64url');
+  const { redirectUri, codePromise, close } = await startCallbackServer(state);
+  oauthClient = buildClient(cfg, redirectUri);
+
+  const authUrl = oauthClient.generateAuthUrl(buildAuthUrlOptions(state));
 
   let code;
   try {
+    await openExternal(authUrl);
     code = await codePromise;
   } finally {
     close();
@@ -199,7 +217,8 @@ exports.connect = async ({ openExternal }) => {
 
   tokens = { ...gotTokens, account: email };
   account = email;
-  await fs.writeFile(tokensPath(), JSON.stringify(tokens, null, 2), 'utf8');
+  await fs.writeFile(tokensPath(), JSON.stringify(tokens, null, 2), { encoding: 'utf8', mode: TOKEN_FILE_MODE });
+  try { await fs.chmod(tokensPath(), TOKEN_FILE_MODE); } catch {}
 
   // Immediately do a first sync so the UI lights up.
   const synced = await exports.sync();
@@ -244,15 +263,7 @@ exports.sync = async () => {
       for (const e of r.data.items || []) {
         if (!e.start || (!e.start.dateTime && !e.start.date)) continue;
         if (e.status === 'cancelled') continue;
-        events.push({
-          id: e.id,
-          calendarId: c.id,
-          title: e.summary || '(no title)',
-          start: extractClock(e.start),
-          end:   extractClock(e.end),
-          location: e.location || '',
-          description: e.description || '',
-        });
+        events.push(normalizeGoogleEvent(c.id, e));
       }
     } catch (err) {
       // Skip calendars we can't read — keep going.
@@ -262,8 +273,23 @@ exports.sync = async () => {
   return { calendars, events, syncedAt: Date.now(), account };
 };
 
+function normalizeGoogleEvent(calendarId, e) {
+  const allDay = !!(e.start?.date && !e.start?.dateTime);
+  return {
+    id: `${calendarId}:${e.id}`,
+    googleEventId: e.id,
+    calendarId,
+    title: e.summary || '(no title)',
+    allDay,
+    start: allDay ? null : extractClock(e.start),
+    end: allDay ? null : extractClock(e.end),
+    location: e.location || '',
+    description: e.description || '',
+  };
+}
+
 function extractClock(point) {
-  // Handles both timed events (dateTime) and all-day events (date).
+  // Timed event clock extraction. All-day events are rendered separately.
   if (point.dateTime) {
     const d = new Date(point.dateTime);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -277,4 +303,10 @@ exports.disconnect = async () => {
   account = null;
   oauthClient = null;
   try { await fs.unlink(tokensPath()); } catch {}
+};
+
+exports._private = {
+  buildAuthUrlOptions,
+  normalizeGoogleEvent,
+  tokenFileMode: TOKEN_FILE_MODE,
 };

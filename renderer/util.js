@@ -12,9 +12,14 @@ export function timeToMinutes(t) {
   return h * 60 + m;
 }
 
+function normalizeClockMinutes(min) {
+  return ((min % (24 * 60)) + (24 * 60)) % (24 * 60);
+}
+
 export function minutesToTime(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
+  const normalized = normalizeClockMinutes(min);
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
@@ -24,7 +29,8 @@ export function minutesToTop(min) {
 
 export function durationHeight(start, end) {
   const s = timeToMinutes(start);
-  const e = timeToMinutes(end);
+  let e = timeToMinutes(end);
+  if (e <= s) e += 24 * 60;
   return Math.max(36, ((e - s) / 60) * HOUR_HEIGHT);
 }
 
@@ -40,8 +46,9 @@ export function pxToMinutes(y, snap = 15) {
 }
 
 export function fmtClock(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
+  const normalized = normalizeClockMinutes(min);
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = ((h + 11) % 12) + 1;
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;

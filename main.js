@@ -48,7 +48,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('window:close', () => mainWindow?.close());
 
   // Google Calendar.
-  google.init({
+  await google.init({
     userDataPath: app.getPath('userData'),
     appPath: __dirname,
   });

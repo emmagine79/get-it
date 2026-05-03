@@ -5,12 +5,13 @@
   "description": "A calm day-planning desktop app for neurodivergent planners.",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "googleapis": "^144.0.0"
+    "googleapis": "^171.4.0"
   },
   "devDependencies": {
-    "electron": "^32.2.0"
+    "electron": "^41.5.0"
   }
 }
