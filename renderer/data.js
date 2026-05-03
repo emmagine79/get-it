@@ -20,7 +20,7 @@ export const PALETTE = [
 ];
 
 export const sampleData = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   currentScreen: 'connect',
   hasCompletedFirstRun: false,
 
@@ -32,6 +32,7 @@ export const sampleData = {
   events: [],             // populated from Google Calendar.
   tasks: [],              // user-created via Quick Add.
   reviewDecisions: {},
+  taskHistory: [],        // append-only task state snapshots for later archive/history views.
 
   // Google connection bookkeeping (renderer-visible — actual tokens stay in main).
   googleConnected: false,

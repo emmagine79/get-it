@@ -47,3 +47,47 @@ test('split view includes a compact agenda summary for scheduled work', () => {
   assert.match(screens, /class="mini-agenda"/);
   assert.match(css, /\.mini-agenda/);
 });
+
+test('schedule and split timelines preserve scroll position across rerenders', () => {
+  const screens = read('renderer/screens.js');
+
+  assert.match(screens, /preserveTimelineScroll/);
+  assert.match(screens, /data-role="schedule-scroll"/);
+  assert.match(screens, /data-role="bridge-scroll"/);
+});
+
+test('schedule blocks expose resize handles for drag duration editing', () => {
+  const screens = read('renderer/screens.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(screens, /data-resize-handle="top"/);
+  assert.match(screens, /data-resize-handle="bottom"/);
+  assert.match(screens, /attachBlockResizeHandlers/);
+  assert.match(css, /\.resize-handle/);
+});
+
+test('split view mini schedule includes a visible time rail', () => {
+  const screens = read('renderer/screens.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(screens, /class="mini-time-rail"/);
+  assert.match(css, /\.mini-time-rail/);
+});
+
+test('review decisions can be undone and partial progress has live fill', () => {
+  const screens = read('renderer/screens.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(screens, /data-action="undo-review"/);
+  assert.match(screens, /style="--partial-pct:/);
+  assert.match(css, /\.slider-fill/);
+});
+
+test('narrow windows preserve the desktop planner width instead of collapsing early', () => {
+  const main = read('main.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(main, /minWidth:\s*1180/);
+  assert.match(css, /\.desktop\s*\{[^}]*min-width:\s*1180px/s);
+  assert.match(css, /@media \(max-width:\s*760px\)/);
+});

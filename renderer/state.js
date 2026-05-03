@@ -24,6 +24,10 @@ function migrate(parsed) {
     });
   }
 
+  if ((parsed.schemaVersion || 1) < 4 && !Array.isArray(parsed.taskHistory)) {
+    parsed.taskHistory = [];
+  }
+
   parsed.schemaVersion = sampleData.schemaVersion;
   return parsed;
 }
@@ -90,6 +94,33 @@ function persist() {
   } catch {}
 }
 
+function taskSnapshot(task) {
+  if (!task) return null;
+  return {
+    ...clone(task),
+    capturedAt: Date.now(),
+  };
+}
+
+function appendTaskHistory(state, task, historyType, detail = {}) {
+  const snapshot = taskSnapshot(task);
+  if (!snapshot) return state;
+  return {
+    ...state,
+    taskHistory: [
+      ...(Array.isArray(state.taskHistory) ? state.taskHistory : []),
+      {
+        id: newId('hist'),
+        taskId: task.id,
+        historyType,
+        detail,
+        snapshot,
+        createdAt: Date.now(),
+      },
+    ],
+  };
+}
+
 export function resetState() {
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
   state = fresh();
@@ -104,15 +135,20 @@ export function newId(prefix = 'id') {
 // ------------------------------ Tasks ------------------------------
 
 export function updateTask(id, patch) {
-  setState((s) => ({
-    ...s,
-    tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-  }));
+  setState((s) => {
+    const previous = s.tasks.find((t) => t.id === id);
+    const nextTasks = s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t));
+    let next = { ...s, tasks: nextTasks };
+    if (previous && Object.hasOwn(patch, 'done') && patch.done !== previous.done) {
+      next = appendTaskHistory(next, { ...previous, ...patch }, patch.done ? 'done' : 'reopened');
+    }
+    return next;
+  });
 }
 
 export function deleteTask(id) {
   setState((s) => ({
-    ...s,
+    ...appendTaskHistory(s, s.tasks.find((t) => t.id === id), 'deleted'),
     tasks: s.tasks.filter((t) => t.id !== id),
     reviewDecisions: Object.fromEntries(
       Object.entries(s.reviewDecisions).filter(([k]) => k !== id),
@@ -121,21 +157,28 @@ export function deleteTask(id) {
 }
 
 export function removeTaskSchedule(id) {
-  setState((s) => ({
-    ...s,
-    tasks: s.tasks.map((t) =>
-      t.id === id ? { ...t, start: undefined, end: undefined } : t,
-    ),
-  }));
+  setState((s) => {
+    const previous = s.tasks.find((t) => t.id === id);
+    return appendTaskHistory({
+      ...s,
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...t, start: undefined, end: undefined } : t,
+      ),
+    }, previous, 'unscheduled');
+  });
 }
 
 export function scheduleTask(id, start, end) {
-  setState((s) => ({
-    ...s,
-    tasks: s.tasks.map((t) =>
-      t.id === id ? { ...t, start, end, mode: 'block' } : t,
-    ),
-  }));
+  setState((s) => {
+    const previous = s.tasks.find((t) => t.id === id);
+    const scheduled = previous ? { ...previous, start, end, mode: 'block' } : null;
+    return appendTaskHistory({
+      ...s,
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...t, start, end, mode: 'block' } : t,
+      ),
+    }, scheduled, 'scheduled', { start, end });
+  });
 }
 
 export function addTask(task) {
@@ -146,19 +189,38 @@ export function addTask(task) {
 }
 
 export function setReviewDecision(taskId, decision) {
-  setState((s) => ({
+  setState((s) => appendTaskHistory({
     ...s,
     reviewDecisions: { ...s.reviewDecisions, [taskId]: decision },
-  }));
+  }, s.tasks.find((t) => t.id === taskId), 'review', { decision: decision?.decision }));
+}
+
+export function clearReviewDecision(taskId) {
+  setState((s) => {
+    const decision = s.reviewDecisions[taskId];
+    const undoTask = decision?.undoTask;
+    return appendTaskHistory({
+      ...s,
+      tasks: undoTask
+        ? s.tasks.map((t) => (t.id === taskId ? { ...undoTask } : t))
+        : s.tasks,
+      reviewDecisions: Object.fromEntries(
+        Object.entries(s.reviewDecisions).filter(([k]) => k !== taskId),
+      ),
+    }, undoTask || s.tasks.find((t) => t.id === taskId), 'review-undo', { decision: decision?.decision });
+  });
 }
 
 export function rolloverTask(id) {
-  setState((s) => ({
-    ...s,
-    tasks: s.tasks.map((t) =>
-      t.id === id ? { ...t, start: undefined, end: undefined, done: false } : t,
-    ),
-  }));
+  setState((s) => {
+    const previous = s.tasks.find((t) => t.id === id);
+    return appendTaskHistory({
+      ...s,
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...t, start: undefined, end: undefined, done: false } : t,
+      ),
+    }, previous, 'rolled');
+  });
 }
 
 // ------------------------------ Calendars ------------------------------
