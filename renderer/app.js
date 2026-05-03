@@ -4,7 +4,7 @@ import {
   renderSettings, renderConnect, renderSidebarSummary, resetAddForm,
 } from './screens.js';
 import { closeModal } from './modal.js';
-import { fmtTodayLabel, nowMinutesClamped } from './util.js';
+import { fmtTodayLabel, nowMinutesClamped, html, setHTML } from './util.js';
 
 const SCREENS = {
   schedule: { title: 'Today in schedule', render: renderSchedule },
@@ -18,6 +18,7 @@ const SCREENS = {
 
 const screenTitleNode = document.getElementById('screenTitle');
 const dateLabelNode = document.getElementById('dateLabel');
+const topbarActionsNode = document.getElementById('topbarActions');
 
 function currentScreen() {
   const s = getState();
@@ -29,6 +30,7 @@ function renderCurrentScreen() {
   const id = currentScreen();
   const def = SCREENS[id];
   if (!def) return;
+  const state = getState();
 
   for (const key of Object.keys(SCREENS)) {
     const el = document.getElementById(key);
@@ -36,16 +38,38 @@ function renderCurrentScreen() {
     el.classList.toggle('active', key === id);
   }
   document.querySelectorAll('.tab').forEach((tab) => {
+    if (tab.dataset.screen === 'connect') {
+      const hideCompletedFirstRun = state.hasCompletedFirstRun && id !== 'connect';
+      tab.hidden = hideCompletedFirstRun;
+      tab.classList.toggle('is-hidden', hideCompletedFirstRun);
+    }
     tab.classList.toggle('active', tab.dataset.screen === id);
   });
 
   screenTitleNode.textContent = def.title;
-  dateLabelNode.textContent = getState().date;
+  dateLabelNode.textContent = state.date;
+  renderTopbarActions(id);
 
   const target = document.getElementById(id);
-  def.render(target, getState());
+  def.render(target, state);
 
-  renderSidebarSummary(getState());
+  renderSidebarSummary(state);
+}
+
+function renderTopbarActions(id) {
+  if (!topbarActionsNode) return;
+  if (id === 'connect') {
+    setHTML(topbarActionsNode, '');
+    return;
+  }
+  const actions = [];
+  if (id !== 'bridge') {
+    actions.push(html`<button class="button" data-screen-target="bridge">Split view</button>`);
+  }
+  if (id !== 'add') {
+    actions.push(html`<button class="button primary" data-screen-target="add">Quick add</button>`);
+  }
+  setHTML(topbarActionsNode, html`${actions}`);
 }
 
 function navigate(id) {

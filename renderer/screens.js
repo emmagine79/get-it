@@ -99,6 +99,9 @@ function tagsHTML(task) {
 function taskCardHTML(task, opts = {}) {
   const draggable = opts.draggable !== false && !task.done;
   const badge = task.mode && MODE_BADGES[task.mode] ? MODE_BADGES[task.mode] : null;
+  const tagList = tagsForTask(task);
+  const visibleTags = tagList.slice(0, 3);
+  const overflowCount = Math.max(0, tagList.length - visibleTags.length);
   return html`
     <article class="task ${task.done ? 'done' : ''} ${draggable ? 'draggable' : ''} ${task.start ? 'scheduled' : ''} ${task.mode === 'maybe' ? 'maybe' : ''}"
              data-task-id="${task.id}"
@@ -109,9 +112,12 @@ function taskCardHTML(task, opts = {}) {
         <h3>${task.title}</h3>
         ${task.note ? html`<p>${task.note}</p>` : ''}
         ${task.start ? html`<p class="task-time">${fmtRange(task.start, task.end)}</p>` : ''}
-        ${badge ? html`<span class="task-badge">${badge}</span>` : ''}
+        <div class="task-meta">
+          ${badge ? html`<span class="task-badge">${badge}</span>` : ''}
+          ${visibleTags.length > 0 ? tagsHTML({ tags: visibleTags }) : html`<span class="tag">task</span>`}
+          ${overflowCount > 0 ? html`<span class="tag tag-more">+${overflowCount}</span>` : ''}
+        </div>
       </div>
-      ${tagsHTML(task)}
     </article>
   `;
 }
@@ -319,21 +325,52 @@ export function renderBridge(root, state) {
   const allDay = allDayEvents(state);
   const blocks = scheduledTasks(state);
   const open = state.tasks.filter((t) => !t.done && !t.start);
+  const agendaItems = [
+    ...events.map((e) => ({
+      id: e.id,
+      kind: 'event',
+      time: e.start,
+      label: e.title,
+      color: calendarColor(state, e.calendarId),
+    })),
+    ...blocks.map((b) => ({
+      id: b.id,
+      kind: 'task',
+      time: b.start,
+      label: b.title,
+      color: 'planned',
+    })),
+  ].sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time)).slice(0, 3);
 
   const markup = html`
     <div class="split-preview">
       <div class="panel mini-schedule">
         <div class="mini-title"><h3>Schedule</h3><span class="tag">time-blocked</span></div>
+        ${agendaItems.length > 0 ? html`
+          <div class="mini-agenda" aria-label="Upcoming scheduled items">
+            ${agendaItems.map((item) => html`
+              <button class="mini-agenda-item ${item.color === 'planned' ? 'planned' : `cal-${item.color}`}"
+                      type="button"
+                      data-${raw(item.kind === 'task' ? 'task' : 'event')}-id="${item.id}"
+                      data-clickable="${item.kind}">
+                <span>${fmtClockShort(timeToMinutes(item.time))}</span>
+                <strong>${item.label}</strong>
+              </button>
+            `)}
+          </div>
+        ` : ''}
         <div class="mini-scroll" data-role="bridge-scroll">
           <div class="mini-track" id="bridgeDropZone">
             ${events.map((e) => {
               const color = calendarColor(state, e.calendarId);
               const top = minutesToTop(timeToMinutes(e.start));
-              return html`<div class="mini-block cal-${color}" data-event-id="${e.id}" data-clickable="event" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(e.start))} ${e.title}</div>`;
+              const h = durationHeight(e.start, e.end);
+              return html`<div class="mini-block cal-${color}" data-event-id="${e.id}" data-clickable="event" style="top:${raw(top + 'px')}; height:${raw(h + 'px')};">${fmtClockShort(timeToMinutes(e.start))} ${e.title}</div>`;
             })}
             ${blocks.map((b) => {
               const top = minutesToTop(timeToMinutes(b.start));
-              return html`<div class="mini-block planned" data-task-id="${b.id}" data-clickable="task" draggable="true" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(b.start))} ${b.title}</div>`;
+              const h = durationHeight(b.start, b.end);
+              return html`<div class="mini-block planned" data-task-id="${b.id}" data-clickable="task" draggable="true" style="top:${raw(top + 'px')}; height:${raw(h + 'px')};">${fmtClockShort(timeToMinutes(b.start))} ${b.title}</div>`;
             })}
             ${events.length + blocks.length === 0
               ? html`<div class="empty-state" style="margin:16px;">Drop a list task here to time-block it.</div>`
@@ -912,9 +949,9 @@ function showTaskEditor(task) {
         <div class="field">
           <label>Time</label>
           <div class="time-row">
-            <input class="input small" type="time" name="start" value="${draft.start || '09:00'}">
+            <input class="input small time-input" type="time" name="start" value="${draft.start || '09:00'}">
             <span class="muted">to</span>
-            <input class="input small" type="time" name="end" value="${draft.end || '09:30'}">
+            <input class="input small time-input" type="time" name="end" value="${draft.end || '09:30'}">
           </div>
         </div>
       ` : ''}

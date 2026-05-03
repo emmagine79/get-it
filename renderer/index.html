@@ -19,13 +19,13 @@
       </div>
 
       <nav class="nav" aria-label="Screens">
-        <button class="tab active" data-screen="schedule"><span class="tab-icon">T</span><span>Schedule</span></button>
-        <button class="tab" data-screen="list"><span class="tab-icon">C</span><span>List</span></button>
-        <button class="tab" data-screen="bridge"><span class="tab-icon">B</span><span>Both views</span></button>
-        <button class="tab" data-screen="add"><span class="tab-icon">+</span><span>Quick add</span></button>
-        <button class="tab" data-screen="review"><span class="tab-icon">R</span><span>Evening review</span></button>
-        <button class="tab" data-screen="settings"><span class="tab-icon">S</span><span>Calendars</span></button>
-        <button class="tab" data-screen="connect"><span class="tab-icon">G</span><span>First run</span></button>
+        <button class="tab active" data-screen="schedule"><span class="tab-icon icon-schedule" aria-hidden="true"></span><span>Schedule</span></button>
+        <button class="tab" data-screen="list"><span class="tab-icon icon-list" aria-hidden="true"></span><span>List</span></button>
+        <button class="tab" data-screen="bridge"><span class="tab-icon icon-bridge" aria-hidden="true"></span><span>Both views</span></button>
+        <button class="tab" data-screen="add"><span class="tab-icon icon-add" aria-hidden="true"></span><span>Quick add</span></button>
+        <button class="tab" data-screen="review"><span class="tab-icon icon-review" aria-hidden="true"></span><span>Evening review</span></button>
+        <button class="tab" data-screen="settings"><span class="tab-icon icon-settings" aria-hidden="true"></span><span>Calendars</span></button>
+        <button class="tab" data-screen="connect"><span class="tab-icon icon-connect" aria-hidden="true"></span><span>First run</span></button>
       </nav>
 
       <div class="sidebar-footer">
@@ -40,7 +40,7 @@
           <div class="today-kicker"><span class="pulse"></span><span id="dateLabel">Wednesday, May 6</span></div>
           <h2 id="screenTitle">Today in schedule</h2>
         </div>
-        <div class="actions no-drag">
+        <div class="actions no-drag" id="topbarActions">
           <button class="button" data-screen-target="bridge">Split view</button>
           <button class="button primary" data-screen-target="add">Quick add</button>
         </div>
