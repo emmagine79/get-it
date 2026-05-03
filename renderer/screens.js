@@ -1,7 +1,7 @@
 import {
   getState, setState, updateTask, removeTaskSchedule, scheduleTask,
   addTask, deleteTask, setReviewDecision, rolloverTask,
-  setCalendarColor, setCalendarVisible, replaceCalendarsAndEvents,
+  clearReviewDecision, setCalendarColor, setCalendarVisible, replaceCalendarsAndEvents,
 } from './state.js';
 import { PALETTE } from './data.js';
 import {
@@ -47,6 +47,8 @@ function blockTaskHTML(task) {
       <h3>${task.title}</h3>
       ${task.note ? html`<p>${task.note}</p>` : ''}
       <span class="block-time">${fmtRange(task.start, task.end)}</span>
+      <span class="resize-handle top" data-resize-handle="top" aria-hidden="true"></span>
+      <span class="resize-handle bottom" data-resize-handle="bottom" aria-hidden="true"></span>
     </article>
   `;
 }
@@ -135,6 +137,38 @@ function timeRailHTML() {
   return rows;
 }
 
+function miniTimeRailHTML() {
+  const rows = [];
+  for (let h = START_HOUR; h < END_HOUR; h++) {
+    if (h % 2 !== 0) {
+      rows.push(html`<span></span>`);
+      continue;
+    }
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = ((h + 11) % 12) + 1;
+    rows.push(html`<span>${h12} ${ampm}</span>`);
+  }
+  return rows;
+}
+
+function preserveTimelineScroll(root, role) {
+  const scroll = root.querySelector(`[data-role="${role}"]`);
+  return scroll ? scroll.scrollTop : null;
+}
+
+function restoreTimelineScroll(root, role, previousScroll, nowMinutes) {
+  const scroll = root.querySelector(`[data-role="${role}"]`);
+  if (!scroll) return;
+  if (previousScroll != null) {
+    scroll.scrollTop = previousScroll;
+    return;
+  }
+  if (root.dataset.didScroll !== '1') {
+    scrollTimelineToNow(scroll, nowMinutes);
+    root.dataset.didScroll = '1';
+  }
+}
+
 // Scroll the rail+timeline so the current time sits about a third
 // from the top, leaving plenty of upcoming time visible below.
 function scrollTimelineToNow(scrollEl, nowMinutes) {
@@ -176,6 +210,63 @@ function attachTaskCommonHandlers(root) {
   });
 }
 
+function attachBlockResizeHandlers(root) {
+  root.querySelectorAll('[data-resize-handle]').forEach((handle) => {
+    handle.addEventListener('click', (e) => e.stopPropagation());
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = handle.closest('.block.planned');
+      const taskId = block?.dataset.taskId;
+      const task = getState().tasks.find((t) => t.id === taskId);
+      if (!block || !task || !task.start || !task.end) return;
+
+      const edge = handle.dataset.resizeHandle;
+      const startY = e.clientY;
+      const originalStart = timeToMinutes(task.start);
+      const originalEnd = timeToMinutes(task.end);
+      const timeLabel = block.querySelector('.block-time');
+      block.classList.add('resizing');
+      handle.setPointerCapture?.(e.pointerId);
+
+      const onMove = (moveEvent) => {
+        const deltaMinutes = Math.round(((moveEvent.clientY - startY) / HOUR_HEIGHT) * 4) * 15;
+        let nextStart = originalStart;
+        let nextEnd = originalEnd;
+        if (edge === 'top') {
+          nextStart = Math.max(START_HOUR * 60, Math.min(originalStart + deltaMinutes, originalEnd - 15));
+        } else {
+          nextEnd = Math.min(END_HOUR * 60, Math.max(originalEnd + deltaMinutes, originalStart + 15));
+        }
+        const start = minutesToTime(nextStart);
+        const end = minutesToTime(nextEnd);
+        block.style.top = `${minutesToTop(nextStart)}px`;
+        block.style.height = `${durationHeight(start, end)}px`;
+        if (timeLabel) timeLabel.textContent = fmtRange(start, end);
+        block.dataset.pendingStart = start;
+        block.dataset.pendingEnd = end;
+      };
+
+      const onUp = () => {
+        block.classList.remove('resizing');
+        handle.releasePointerCapture?.(e.pointerId);
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+        const start = block.dataset.pendingStart || task.start;
+        const end = block.dataset.pendingEnd || task.end;
+        delete block.dataset.pendingStart;
+        delete block.dataset.pendingEnd;
+        if (start !== task.start || end !== task.end) scheduleTask(task.id, start, end);
+      };
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    });
+  });
+}
+
 // ============================================================
 //   Empty-state cards (shown when no Google Calendar is connected)
 // ============================================================
@@ -194,6 +285,7 @@ function notConnectedCard() {
 // ============================================================
 
 export function renderSchedule(root, state) {
+  const previousScroll = preserveTimelineScroll(root, 'schedule-scroll');
   const events = timedEvents(state);
   const allDay = allDayEvents(state);
   const blocks = scheduledTasks(state);
@@ -205,7 +297,7 @@ export function renderSchedule(root, state) {
   const markup = html`
     <div class="schedule-grid">
       <div class="panel timeline-pane">
-        <div class="timeline-scroll">
+        <div class="timeline-scroll" data-role="schedule-scroll">
           <div class="time-rail">${timeRailHTML()}</div>
           <div class="timeline" id="dropZone" aria-label="Schedule timeline">
             <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClockShort(state.nowMinutes)}</div>
@@ -235,17 +327,11 @@ export function renderSchedule(root, state) {
   `;
   setHTML(root, markup);
 
-  // Center the current time in the visible scroll window (only the first
-  // render after a navigation — re-renders inside the same screen leave
-  // the user's scroll position alone).
-  const scroll = root.querySelector('.timeline-scroll');
-  if (scroll && root.dataset.didScroll !== '1') {
-    scrollTimelineToNow(scroll, state.nowMinutes);
-    root.dataset.didScroll = '1';
-  }
+  restoreTimelineScroll(root, 'schedule-scroll', previousScroll, state.nowMinutes);
 
   root.querySelectorAll('.task.draggable').forEach((el) => wireDragSource(el));
   root.querySelectorAll('.block.planned').forEach((el) => wireDragSource(el));
+  attachBlockResizeHandlers(root);
 
   const timeline = root.querySelector('#dropZone');
   if (timeline) {
@@ -321,6 +407,7 @@ export function renderList(root, state) {
 // ============================================================
 
 export function renderBridge(root, state) {
+  const previousScroll = preserveTimelineScroll(root, 'bridge-scroll');
   const events = timedEvents(state);
   const allDay = allDayEvents(state);
   const blocks = scheduledTasks(state);
@@ -360,6 +447,7 @@ export function renderBridge(root, state) {
           </div>
         ` : ''}
         <div class="mini-scroll" data-role="bridge-scroll">
+          <div class="mini-time-rail" aria-hidden="true">${miniTimeRailHTML()}</div>
           <div class="mini-track" id="bridgeDropZone">
             ${events.map((e) => {
               const color = calendarColor(state, e.calendarId);
@@ -394,11 +482,7 @@ export function renderBridge(root, state) {
   `;
   setHTML(root, markup);
 
-  const bridgeScroll = root.querySelector('[data-role="bridge-scroll"]');
-  if (bridgeScroll && root.dataset.didScroll !== '1') {
-    scrollTimelineToNow(bridgeScroll, state.nowMinutes);
-    root.dataset.didScroll = '1';
-  }
+  restoreTimelineScroll(root, 'bridge-scroll', previousScroll, state.nowMinutes);
 
   root.querySelectorAll('.task.draggable, .mini-block.planned').forEach((el) => wireDragSource(el));
 
@@ -658,8 +742,13 @@ function reviewCardHTML(task, state) {
   const sel = (k) => (dec.decision === k ? 'selected' : '');
   return html`
     <article class="review-card" data-task-id="${task.id}">
-      <h3>${task.title}</h3>
-      <p>${task.start ? `Time-blocked ${fmtRange(task.start, task.end)}` : 'Untimed task'}${task.done && !dec.decision ? ' · already checked off' : ''}</p>
+      <div class="review-card-head">
+        <div>
+          <h3>${task.title}</h3>
+          <p>${task.start ? `Time-blocked ${fmtRange(task.start, task.end)}` : 'Untimed task'}${task.done && !dec.decision ? ' · already checked off' : ''}</p>
+        </div>
+        ${dec.decision ? html`<button type="button" class="button ghost undo-button" data-action="undo-review">Undo</button>` : ''}
+      </div>
       <div class="choice-row" data-group="decision">
         <button type="button" class="choice ${sel('done')}" data-value="done">Done enough</button>
         <button type="button" class="choice ${sel('roll')}" data-value="roll">Roll to tomorrow</button>
@@ -674,11 +763,14 @@ function partialBoxHTML(task, dec) {
   const pct = typeof dec.percent === 'number' ? dec.percent : 65;
   const mode = dec.partialMode || 'roll';
   return html`
-    <div class="partial-box" data-task-id="${task.id}">
+    <div class="partial-box" data-task-id="${task.id}" style="--partial-pct:${pct}%;">
       <strong>About how far did it get?</strong>
       <div class="slider-row">
         <span>0%</span>
-        <input type="range" min="0" max="100" value="${pct}" data-action="partial-percent" aria-label="Partial completion">
+        <div class="slider-wrap">
+          <span class="slider-fill"></span>
+          <input type="range" min="0" max="100" value="${pct}" data-action="partial-percent" aria-label="Partial completion">
+        </div>
         <span data-role="percent-label">${pct}%</span>
       </div>
       <div class="choice-row" data-group="partial-mode">
@@ -693,17 +785,24 @@ function attachReviewHandlers(root) {
   root.querySelectorAll('.review-card').forEach((card) => {
     const id = card.dataset.taskId;
 
+    card.querySelector('[data-action="undo-review"]')?.addEventListener('click', () => {
+      clearReviewDecision(id);
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Review choice undone.' }));
+    });
+
     card.querySelectorAll('[data-group="decision"] button').forEach((btn) => {
       btn.addEventListener('click', () => {
         const value = btn.dataset.value;
+        const task = getState().tasks.find((t) => t.id === id);
+        const undoTask = task ? { ...task } : undefined;
         if (value === 'done') {
-          setReviewDecision(id, { decision: 'done' });
+          setReviewDecision(id, { decision: 'done', undoTask });
           updateTask(id, { done: true });
         } else if (value === 'roll') {
-          setReviewDecision(id, { decision: 'roll' });
+          setReviewDecision(id, { decision: 'roll', undoTask });
           rolloverTask(id);
         } else {
-          setReviewDecision(id, { decision: 'partial', percent: 65, partialMode: 'roll' });
+          setReviewDecision(id, { decision: 'partial', percent: 65, partialMode: 'roll', undoTask });
         }
       });
     });
@@ -713,6 +812,11 @@ function attachReviewHandlers(root) {
         const v = Number(e.target.value);
         const label = card.querySelector('[data-role="percent-label"]');
         if (label) label.textContent = `${v}%`;
+        const box = card.querySelector('.partial-box');
+        if (box) box.style.setProperty('--partial-pct', `${v}%`);
+      });
+      slider.addEventListener('change', (e) => {
+        const v = Number(e.target.value);
         const dec = getState().reviewDecisions[id] || { decision: 'partial' };
         setReviewDecision(id, { ...dec, decision: 'partial', percent: v });
       });
