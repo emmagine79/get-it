@@ -26,6 +26,8 @@ const calendarName = (state, calendarId) =>
 const visibleEvents = (state) =>
   state.events.filter((e) => state.calendars.find((c) => c.id === e.calendarId)?.visible);
 
+const timedEvents = (state) => visibleEvents(state).filter((e) => !e.allDay);
+const allDayEvents = (state) => visibleEvents(state).filter((e) => e.allDay);
 const scheduledTasks = (state) => state.tasks.filter((t) => t.start && t.end);
 const untimedTasks = (state) => state.tasks.filter((t) => !t.start);
 
@@ -60,6 +62,17 @@ function blockEventHTML(state, evt) {
       <h3>${evt.title}</h3>
       <p>${calShort} · ${fmtRange(evt.start, evt.end)}</p>
     </article>
+  `;
+}
+
+function smallEventHTML(state, evt) {
+  const color = calendarColor(state, evt.calendarId);
+  const label = evt.allDay ? 'All day' : fmtClockShort(timeToMinutes(evt.start));
+  return html`
+    <div class="small-event" data-event-id="${evt.id}" data-clickable="event">
+      <span class="swatch" style="background: var(--${raw(esc(color))});"></span>
+      <span>${label} ${evt.title}</span>
+    </div>
   `;
 }
 
@@ -175,7 +188,8 @@ function notConnectedCard() {
 // ============================================================
 
 export function renderSchedule(root, state) {
-  const events = visibleEvents(state);
+  const events = timedEvents(state);
+  const allDay = allDayEvents(state);
   const blocks = scheduledTasks(state);
   const untimed = untimedTasks(state).filter((t) => !t.done && t.mode !== 'maybe');
   const maybes = state.tasks.filter((t) => !t.done && t.mode === 'maybe');
@@ -205,6 +219,10 @@ export function renderSchedule(root, state) {
           ${maybes.map((t) => taskCardHTML(t))}
         ` : ''}
         ${dones.length > 0 ? dones.map((t) => taskCardHTML(t, { draggable: false })) : ''}
+        ${allDay.length > 0 ? html`
+          <div class="panel-title" style="margin-top:8px;"><h3 style="font-size:16px;">All day</h3><span class="count">calendar</span></div>
+          ${allDay.map((e) => smallEventHTML(state, e))}
+        ` : ''}
         ${!hasAnyConnected ? notConnectedCard() : softNoteHTML('Gentle rule', 'The schedule is a sketch, not a contract. Calendar blocks are anchors; planned blocks can move.')}
       </aside>
     </div>
@@ -283,10 +301,7 @@ export function renderList(root, state) {
           ? notConnectedCard()
           : visibleEvts.length === 0
             ? html`<div class="empty-state">No calendar events today.</div>`
-            : visibleEvts.map((e) => {
-                const color = calendarColor(state, e.calendarId);
-                return html`<div class="small-event" data-event-id="${e.id}" data-clickable="event"><span class="swatch" style="background: var(--${raw(esc(color))});"></span><span>${fmtClockShort(timeToMinutes(e.start))} ${e.title}</span></div>`;
-              })}
+            : visibleEvts.map((e) => smallEventHTML(state, e))}
         ${softNoteHTML('List mode stays loose', 'Meetings are visible for context, but tasks remain untimed until you drag them into schedule view.')}
       </aside>
     </div>
@@ -300,7 +315,8 @@ export function renderList(root, state) {
 // ============================================================
 
 export function renderBridge(root, state) {
-  const events = visibleEvents(state);
+  const events = timedEvents(state);
+  const allDay = allDayEvents(state);
   const blocks = scheduledTasks(state);
   const open = state.tasks.filter((t) => !t.done && !t.start);
 
@@ -331,6 +347,10 @@ export function renderBridge(root, state) {
         ${open.length === 0
           ? html`<div class="empty-state">Untimed list is clear.</div>`
           : open.map((t) => taskCardHTML(t))}
+        ${allDay.length > 0 ? html`
+          <div class="panel-title" style="margin-top:8px;"><h3 style="font-size:16px;">All day</h3><span class="count">calendar</span></div>
+          ${allDay.map((e) => smallEventHTML(state, e))}
+        ` : ''}
         ${softNoteHTML('Move both ways', 'Time-block a task by dragging onto the schedule; pull it back to the list when the day changes.')}
       </div>
     </div>
@@ -973,7 +993,7 @@ function showEventDetails(evt) {
       <p class="modal-lead">From <strong>${calName.split(' / ')[0]}</strong></p>
       <div class="event-detail">
         <h2>${evt.title}</h2>
-        <p class="muted">${fmtRange(evt.start, evt.end)}</p>
+        <p class="muted">${evt.allDay ? 'All day' : fmtRange(evt.start, evt.end)}</p>
         ${evt.location ? html`<p>${evt.location}</p>` : ''}
         ${evt.description ? html`<p style="white-space:pre-line;">${evt.description}</p>` : ''}
         <p class="muted" style="margin-top:14px; font-size:12px;">Calendar events are read-only inside Get It. Edit them in Google Calendar.</p>
