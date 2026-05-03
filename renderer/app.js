@@ -1,8 +1,10 @@
-import { getState, setState, subscribe, resetState } from './state.js';
+import { getState, setState, subscribe, resetState, replaceCalendarsAndEvents } from './state.js';
 import {
   renderSchedule, renderList, renderBridge, renderAdd, renderReview,
   renderSettings, renderConnect, renderSidebarSummary, resetAddForm,
 } from './screens.js';
+import { closeModal } from './modal.js';
+import { fmtTodayLabel, nowMinutesClamped } from './util.js';
 
 const SCREENS = {
   schedule: { title: 'Today in schedule', render: renderSchedule },
@@ -19,9 +21,8 @@ const dateLabelNode = document.getElementById('dateLabel');
 
 function currentScreen() {
   const s = getState();
-  // If first run hasn't been completed, force the connect screen.
   if (!s.hasCompletedFirstRun && s.currentScreen !== 'connect') return 'connect';
-  return s.currentScreen || 'schedule';
+  return s.currentScreen || 'list';
 }
 
 function renderCurrentScreen() {
@@ -29,7 +30,6 @@ function renderCurrentScreen() {
   const def = SCREENS[id];
   if (!def) return;
 
-  // Toggle visibility — only the active screen is shown.
   for (const key of Object.keys(SCREENS)) {
     const el = document.getElementById(key);
     if (!el) continue;
@@ -40,6 +40,8 @@ function renderCurrentScreen() {
   });
 
   screenTitleNode.textContent = def.title;
+  dateLabelNode.textContent = getState().date;
+
   const target = document.getElementById(id);
   def.render(target, getState());
 
@@ -49,57 +51,8 @@ function renderCurrentScreen() {
 function navigate(id) {
   if (!SCREENS[id]) return;
   if (id === 'add') resetAddForm();
+  closeModal();
   setState({ currentScreen: id });
-}
-
-// ------------------------------ Initial render & re-render on state change ------------------------------
-
-function init() {
-  // Header date label
-  dateLabelNode.textContent = getState().date;
-
-  // Sidebar nav clicks (and any [data-screen-target] anywhere).
-  document.body.addEventListener('click', (event) => {
-    const trigger = event.target.closest('[data-screen], [data-screen-target]');
-    if (!trigger) return;
-    const screen = trigger.dataset.screen || trigger.dataset.screenTarget;
-    if (screen) navigate(screen);
-  });
-
-  // Window controls (minimize / maximize / close) via preload bridge.
-  const winApi = window.windowAPI;
-  document.getElementById('winMin').addEventListener('click', () => winApi?.minimize());
-  document.getElementById('winMax').addEventListener('click', () => winApi?.toggleMaximize());
-  document.getElementById('winClose').addEventListener('click', () => winApi?.close());
-
-  // Cross-screen events from renderers.
-  window.addEventListener('app:navigate', (e) => navigate(e.detail));
-  window.addEventListener('app:toast', (e) => showToast(e.detail));
-
-  // Keyboard: Cmd/Ctrl-N opens quick add, Esc returns to list.
-  window.addEventListener('keydown', (e) => {
-    const isAccel = (e.metaKey || e.ctrlKey);
-    if (isAccel && e.key.toLowerCase() === 'n') {
-      e.preventDefault();
-      navigate('add');
-    } else if (e.key === 'Escape' && currentScreen() === 'add') {
-      navigate('list');
-    }
-  });
-
-  // Dev-only escape hatch: triple-click brand to reset to seed data.
-  let brandClicks = 0;
-  document.querySelector('.brand')?.addEventListener('click', () => {
-    brandClicks++;
-    setTimeout(() => { brandClicks = 0; }, 600);
-    if (brandClicks >= 3) {
-      resetState();
-      showToast('Sample data restored.');
-    }
-  });
-
-  subscribe(() => renderCurrentScreen());
-  renderCurrentScreen();
 }
 
 // ------------------------------ Toast ------------------------------
@@ -111,10 +64,125 @@ function showToast(message) {
   node.textContent = message;
   node.classList.add('show');
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => node.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => node.classList.remove('show'), 2400);
+}
+
+// ------------------------------ Google ------------------------------
+
+async function googleConnect() {
+  const api = window.googleAPI;
+  if (!api) {
+    setState({ googleError: 'Google bridge unavailable. Restart the app.' });
+    return;
+  }
+  setState({ googleSyncing: true, googleError: null });
+  const result = await api.connect();
+  if (!result.ok) {
+    setState({ googleSyncing: false, googleError: result.error });
+    showToast('Could not connect.');
+    return;
+  }
+  replaceCalendarsAndEvents(result.calendars || [], result.events || []);
+  setState({
+    googleConnected: true,
+    googleAccount: result.account,
+    googleSyncing: false,
+    googleError: null,
+    hasCompletedFirstRun: true,
+    currentScreen: 'schedule',
+  });
+  showToast(result.account ? `Connected as ${result.account}.` : 'Connected.');
+}
+
+async function googleRefresh() {
+  const api = window.googleAPI;
+  if (!api) return;
+  setState({ googleSyncing: true, googleError: null });
+  const result = await api.sync();
+  if (!result.ok) {
+    setState({ googleSyncing: false, googleError: result.error });
+    showToast('Sync failed.');
+    return;
+  }
+  replaceCalendarsAndEvents(result.calendars || [], result.events || []);
+  setState({ googleSyncing: false });
+  showToast('Synced.');
+}
+
+async function bootGoogleStatus() {
+  const api = window.googleAPI;
+  if (!api) return;
+  try {
+    const status = await api.status();
+    if (status.connected) {
+      setState({ googleConnected: true, googleAccount: status.account });
+      // Quietly refresh in the background so today's events match reality.
+      const result = await api.sync();
+      if (result.ok) {
+        replaceCalendarsAndEvents(result.calendars || [], result.events || []);
+        setState({ googleSyncing: false });
+      } else {
+        setState({ googleError: result.error });
+      }
+    }
+  } catch {}
 }
 
 // ------------------------------ Boot ------------------------------
+
+function init() {
+  document.body.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-screen], [data-screen-target]');
+    if (!trigger) return;
+    const screen = trigger.dataset.screen || trigger.dataset.screenTarget;
+    if (screen) navigate(screen);
+  });
+
+  const winApi = window.windowAPI;
+  document.getElementById('winMin').addEventListener('click', () => winApi?.minimize());
+  document.getElementById('winMax').addEventListener('click', () => winApi?.toggleMaximize());
+  document.getElementById('winClose').addEventListener('click', () => winApi?.close());
+
+  window.addEventListener('app:navigate', (e) => navigate(e.detail));
+  window.addEventListener('app:toast', (e) => showToast(e.detail));
+  window.addEventListener('app:google-connect', googleConnect);
+  window.addEventListener('app:google-refresh', googleRefresh);
+
+  window.addEventListener('keydown', (e) => {
+    const isAccel = (e.metaKey || e.ctrlKey);
+    if (isAccel && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      navigate('add');
+    } else if (e.key === 'Escape' && currentScreen() === 'add') {
+      navigate('list');
+    }
+  });
+
+  // Triple-click brand to reset to a clean slate.
+  let brandClicks = 0;
+  document.querySelector('.brand')?.addEventListener('click', () => {
+    brandClicks++;
+    setTimeout(() => { brandClicks = 0; }, 600);
+    if (brandClicks >= 3) {
+      resetState();
+      showToast('Cleared. Connect Google to bring events back.');
+    }
+  });
+
+  // Refresh "now" line and date every minute.
+  setInterval(() => {
+    setState((s) => ({
+      ...s,
+      date: fmtTodayLabel(),
+      nowMinutes: nowMinutesClamped(),
+    }));
+  }, 60_000);
+
+  subscribe(() => renderCurrentScreen());
+  renderCurrentScreen();
+
+  bootGoogleStatus();
+}
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);

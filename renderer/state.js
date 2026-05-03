@@ -1,6 +1,7 @@
 import { sampleData } from './data.js';
+import { fmtTodayLabel, nowMinutesClamped } from './util.js';
 
-const STORAGE_KEY = 'get-it-state-v1';
+const STORAGE_KEY = 'get-it-state-v2';
 
 function clone(obj) {
   return typeof structuredClone === 'function'
@@ -8,18 +9,31 @@ function clone(obj) {
     : JSON.parse(JSON.stringify(obj));
 }
 
+function fresh() {
+  const base = clone(sampleData);
+  base.date = fmtTodayLabel();
+  base.nowMinutes = nowMinutesClamped();
+  return base;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return clone(sampleData);
+    if (!raw) return fresh();
     const parsed = JSON.parse(raw);
-    // Merge with sampleData defaults so new fields appear after upgrade.
-    if (parsed.schemaVersion !== sampleData.schemaVersion) {
-      return clone(sampleData);
-    }
-    return { ...clone(sampleData), ...parsed };
+    if (parsed.schemaVersion !== sampleData.schemaVersion) return fresh();
+    return {
+      ...fresh(),
+      ...parsed,
+      // Always recompute date / now on boot — these aren't persisted truth.
+      date: fmtTodayLabel(),
+      nowMinutes: nowMinutesClamped(),
+      // Sync flags shouldn't survive a restart.
+      googleSyncing: false,
+      googleError: null,
+    };
   } catch {
-    return clone(sampleData);
+    return fresh();
   }
 }
 
@@ -30,7 +44,6 @@ export function getState() {
   return state;
 }
 
-// `updater` may be a partial object or a function returning the next state.
 export function setState(updater) {
   const next = typeof updater === 'function'
     ? updater(state)
@@ -46,26 +59,40 @@ export function subscribe(fn) {
 }
 
 function persist() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+  try {
+    // Don't persist transient flags.
+    const { googleSyncing, googleError, nowMinutes, date, ...rest } = state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
+  } catch {}
 }
 
 export function resetState() {
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
-  state = clone(sampleData);
+  state = fresh();
   for (const fn of listeners) fn(state);
 }
-
-// ------------------------------ Mutators ------------------------------
 
 let nextIdCounter = 1;
 export function newId(prefix = 'id') {
   return `${prefix}-${Date.now().toString(36)}-${(nextIdCounter++).toString(36)}`;
 }
 
+// ------------------------------ Tasks ------------------------------
+
 export function updateTask(id, patch) {
   setState((s) => ({
     ...s,
     tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+  }));
+}
+
+export function deleteTask(id) {
+  setState((s) => ({
+    ...s,
+    tasks: s.tasks.filter((t) => t.id !== id),
+    reviewDecisions: Object.fromEntries(
+      Object.entries(s.reviewDecisions).filter(([k]) => k !== id),
+    ),
   }));
 }
 
@@ -81,14 +108,16 @@ export function removeTaskSchedule(id) {
 export function scheduleTask(id, start, end) {
   setState((s) => ({
     ...s,
-    tasks: s.tasks.map((t) => (t.id === id ? { ...t, start, end } : t)),
+    tasks: s.tasks.map((t) =>
+      t.id === id ? { ...t, start, end, mode: 'block' } : t,
+    ),
   }));
 }
 
 export function addTask(task) {
   setState((s) => ({
     ...s,
-    tasks: [...s.tasks, { id: newId('tsk'), done: false, ...task }],
+    tasks: [...s.tasks, { id: newId('tsk'), done: false, mode: 'task', ...task }],
   }));
 }
 
@@ -100,8 +129,6 @@ export function setReviewDecision(taskId, decision) {
 }
 
 export function rolloverTask(id) {
-  // For this prototype "tomorrow" just means clearing the schedule and keeping it
-  // in the task list. A real version would carry a date forward.
   setState((s) => ({
     ...s,
     tasks: s.tasks.map((t) =>
@@ -109,6 +136,8 @@ export function rolloverTask(id) {
     ),
   }));
 }
+
+// ------------------------------ Calendars ------------------------------
 
 export function setCalendarColor(calId, color) {
   setState((s) => ({
@@ -122,4 +151,24 @@ export function setCalendarVisible(calId, visible) {
     ...s,
     calendars: s.calendars.map((c) => (c.id === calId ? { ...c, visible } : c)),
   }));
+}
+
+// Replace calendars + events wholesale (used after a Google sync).
+// Preserves user-chosen color and visibility for known calendars.
+export function replaceCalendarsAndEvents(calendars, events) {
+  setState((s) => {
+    const previous = new Map(s.calendars.map((c) => [c.id, c]));
+    const palette = ['sage', 'lavender', 'sky', 'rose', 'amber'];
+    const merged = calendars.map((c, i) => {
+      const prev = previous.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        subtitle: c.subtitle ?? prev?.subtitle ?? '',
+        color: prev?.color || palette[i % palette.length],
+        visible: prev ? prev.visible : true,
+      };
+    });
+    return { ...s, calendars: merged, events, lastSyncedAt: Date.now() };
+  });
 }

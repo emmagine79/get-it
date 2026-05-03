@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('node:path');
+const google = require('./google.js');
 
 let mainWindow = null;
 
@@ -17,7 +18,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: false,
     },
   });
 
@@ -35,7 +36,8 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Window controls.
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
   ipcMain.handle('window:toggle-maximize', () => {
     if (!mainWindow) return false;
@@ -44,6 +46,35 @@ app.whenReady().then(() => {
     return mainWindow.isMaximized();
   });
   ipcMain.handle('window:close', () => mainWindow?.close());
+
+  // Google Calendar.
+  google.init({ userDataPath: app.getPath('userData') });
+
+  ipcMain.handle('google:status', () => google.getStatus());
+
+  ipcMain.handle('google:connect', async () => {
+    try {
+      const result = await google.connect({
+        openExternal: (url) => shell.openExternal(url),
+      });
+      return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('google:sync', async () => {
+    try {
+      return { ok: true, ...(await google.sync()) };
+    } catch (err) {
+      return { ok: false, error: err.message || String(err) };
+    }
+  });
+
+  ipcMain.handle('google:disconnect', async () => {
+    await google.disconnect();
+    return { ok: true };
+  });
 
   createWindow();
 

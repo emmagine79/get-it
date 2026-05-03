@@ -10,3 +10,10 @@ contextBridge.exposeInMainWorld('windowAPI', {
     return () => ipcRenderer.removeListener('window:state', handler);
   },
 });
+
+contextBridge.exposeInMainWorld('googleAPI', {
+  status:     () => ipcRenderer.invoke('google:status'),
+  connect:    () => ipcRenderer.invoke('google:connect'),
+  sync:       () => ipcRenderer.invoke('google:sync'),
+  disconnect: () => ipcRenderer.invoke('google:disconnect'),
+});

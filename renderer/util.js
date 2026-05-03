@@ -51,6 +51,25 @@ export function fmtRange(start, end) {
   return `${fmtClock(timeToMinutes(start))} – ${fmtClock(timeToMinutes(end))}`;
 }
 
+export function fmtClockShort(min) {
+  // No AM/PM — used in narrow chips and the "now" line.
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, '0')}`;
+}
+
+// Today, formatted like "Wednesday, May 6".
+export function fmtTodayLabel(date = new Date()) {
+  return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+// "now" line position in minutes from midnight, clamped to the visible rail.
+export function nowMinutesClamped(date = new Date()) {
+  const min = date.getHours() * 60 + date.getMinutes();
+  return Math.max(START_HOUR * 60, Math.min(min, END_HOUR * 60 - 1));
+}
+
 // Lightweight HTML escape for any user-provided text shipped via template strings.
 export function esc(s) {
   return String(s ?? '')
@@ -61,48 +80,73 @@ export function esc(s) {
     .replace(/'/g, '&#39;');
 }
 
-// Tagged template helper that escapes interpolated values automatically.
-// Use array spread (e.g. `${tasks.map(t => html`...`).join('')}`) when you need raw HTML.
+// `raw(value)` marks a string as already-safe HTML so the `html` tagged
+// template won't escape it on interpolation. Idempotent: passing an existing
+// raw object returns it unchanged, which is what makes nested `html` work.
+export function raw(value) {
+  if (isRaw(value)) return value;
+  return { __raw: true, value: String(value ?? '') };
+}
+
+function isRaw(v) {
+  return v != null && typeof v === 'object' && v.__raw === true;
+}
+
+// Tagged template helper.
+//
+// Strings interpolated with `${...}` are HTML-escaped by default.
+// Values produced by another `html\`\`` (or wrapped in `raw(...)`) are
+// passed through as-is. Arrays are interpolated element-wise with the
+// same rules — no `.join('')` needed.
+//
+// Returns a `{__raw, value}` marker so nested `html\`\`` calls compose
+// cleanly. `setHTML` and consumers that need a string can call `.value`
+// or pass the object straight through (setHTML unwraps).
 export function html(strings, ...values) {
   let out = '';
   for (let i = 0; i < strings.length; i++) {
     out += strings[i];
     if (i < values.length) {
       const v = values[i];
-      if (Array.isArray(v)) out += v.join('');
-      else if (v == null) out += '';
-      else if (typeof v === 'object' && v.__raw) out += v.value;
-      else out += esc(v);
+      if (v == null || v === false) {
+        // Allows `${cond && html\`...\`}` to drop cleanly.
+      } else if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item == null || item === false) continue;
+          if (isRaw(item)) out += item.value;
+          else out += esc(item);
+        }
+      } else if (isRaw(v)) {
+        out += v.value;
+      } else {
+        out += esc(v);
+      }
     }
   }
-  return out;
+  return raw(out);
 }
 
-// Mark a string as raw HTML so `html` doesn't escape it.
-export function raw(value) {
-  return { __raw: true, value: String(value ?? '') };
-}
-
-// Replace a node's children from an HTML string.
+// Replace a node's children from an HTML value.
 //
 // Security model (single audit point):
-//   1. All interpolated values flow through the `html` tagged template,
-//      which escapes by default. Anything wrapped in `raw(...)` is
-//      developer-authored markup, never user input.
-//   2. The renderer code lives entirely under the CSP declared in
-//      index.html (`script-src 'self'`), so even if a malformed string
-//      ever slipped through, an injected `<script>` would be blocked.
-//   3. The seed data is local. There is no path from the network into
-//      a render call.
+//   1. Every interpolated value passes through the `html` tagged template,
+//      which escapes by default. Things wrapped in `raw(...)` are author-
+//      written markup, never user input.
+//   2. The renderer runs under the CSP declared in index.html
+//      (`script-src 'self'`), so an injected `<script>` would not execute
+//      even if it slipped through.
+//   3. There is no path from the network into a render call beyond the
+//      Google Calendar sync layer, which itself goes through `html` /
+//      `esc` for every user-controlled field.
 //
-// Range#createContextualFragment is used in place of direct innerHTML
-// assignment so this wrapper is the only place HTML is materialised
-// from a string. If sanitisation is ever needed (e.g. importing user
-// content from elsewhere), it goes here and nowhere else.
-export function setHTML(node, htmlString) {
+// Range#createContextualFragment is used instead of a direct innerHTML
+// assignment so this wrapper is the only spot HTML is materialised from
+// a string. If sanitisation is ever needed, it goes here and nowhere else.
+export function setHTML(node, value) {
+  const str = isRaw(value) ? value.value : String(value ?? '');
   const range = document.createRange();
   range.selectNodeContents(node);
   range.deleteContents();
-  const fragment = range.createContextualFragment(String(htmlString ?? ''));
+  const fragment = range.createContextualFragment(str);
   node.appendChild(fragment);
 }

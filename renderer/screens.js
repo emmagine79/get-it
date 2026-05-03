@@ -1,42 +1,49 @@
 import {
   getState, setState, updateTask, removeTaskSchedule, scheduleTask,
-  addTask, setReviewDecision, rolloverTask, setCalendarColor, setCalendarVisible,
+  addTask, deleteTask, setReviewDecision, rolloverTask,
+  setCalendarColor, setCalendarVisible, replaceCalendarsAndEvents,
 } from './state.js';
 import { PALETTE } from './data.js';
 import {
   HOUR_HEIGHT, START_HOUR, END_HOUR, TIMELINE_HEIGHT,
   timeToMinutes, minutesToTop, durationHeight, pxToMinutes,
-  fmtClock, fmtRange, minutesToTime, html, raw, esc, setHTML,
+  fmtClock, fmtClockShort, fmtRange, minutesToTime,
+  html, raw, esc, setHTML,
 } from './util.js';
 import { wireDragSource, wireDropZone } from './dragdrop.js';
+import { openModal, closeModal } from './modal.js';
 
 // ============================================================
 //   Shared helpers
 // ============================================================
 
-function calendarColor(state, calendarId) {
-  const cal = state.calendars.find((c) => c.id === calendarId);
-  return cal ? cal.color : 'sage';
-}
+const calendarColor = (state, calendarId) =>
+  state.calendars.find((c) => c.id === calendarId)?.color || 'sage';
 
-function visibleEvents(state) {
-  return state.events.filter((e) => {
-    const cal = state.calendars.find((c) => c.id === e.calendarId);
-    return cal?.visible;
-  });
-}
+const calendarName = (state, calendarId) =>
+  state.calendars.find((c) => c.id === calendarId)?.name || 'Calendar';
+
+const visibleEvents = (state) =>
+  state.events.filter((e) => state.calendars.find((c) => c.id === e.calendarId)?.visible);
 
 const scheduledTasks = (state) => state.tasks.filter((t) => t.start && t.end);
-const untimedTasks  = (state) => state.tasks.filter((t) => !t.start);
+const untimedTasks = (state) => state.tasks.filter((t) => !t.start);
+
+const MODE_BADGES = {
+  block: 'time block',
+  maybe: 'maybe',
+  morning: 'morning',
+  afternoon: 'afternoon',
+};
 
 function blockTaskHTML(task) {
   const top = minutesToTop(timeToMinutes(task.start));
   const h = durationHeight(task.start, task.end);
   return html`
-    <article class="block planned" data-task-id="${task.id}" draggable="true"
+    <article class="block planned" data-task-id="${task.id}" data-clickable="task" draggable="true"
              style="top:${raw(top + 'px')}; height:${raw(h + 'px')};">
       <h3>${task.title}</h3>
-      <p>${task.note ?? ''}</p>
+      ${task.note ? html`<p>${task.note}</p>` : ''}
       <span class="block-time">${fmtRange(task.start, task.end)}</span>
     </article>
   `;
@@ -44,48 +51,49 @@ function blockTaskHTML(task) {
 
 function blockEventHTML(state, evt) {
   const color = calendarColor(state, evt.calendarId);
-  const cal = state.calendars.find((c) => c.id === evt.calendarId);
   const top = minutesToTop(timeToMinutes(evt.start));
   const h = durationHeight(evt.start, evt.end);
-  const label = cal ? cal.name.split(' / ')[0] : '';
+  const calShort = calendarName(state, evt.calendarId).split(' / ')[0];
   return html`
-    <article class="block read-only cal-${raw(esc(color))}"
+    <article class="block read-only cal-${color}" data-event-id="${evt.id}" data-clickable="event"
              style="top:${raw(top + 'px')}; height:${raw(h + 'px')};">
       <h3>${evt.title}</h3>
-      <p>${label} · ${fmtRange(evt.start, evt.end)}</p>
+      <p>${calShort} · ${fmtRange(evt.start, evt.end)}</p>
     </article>
   `;
 }
 
 function taskCardHTML(task, opts = {}) {
   const draggable = opts.draggable !== false && !task.done;
+  const badge = task.mode && MODE_BADGES[task.mode] ? MODE_BADGES[task.mode] : null;
   return html`
-    <article class="task ${task.done ? 'done' : ''} ${draggable ? 'draggable' : ''} ${task.start ? 'scheduled' : ''}"
+    <article class="task ${task.done ? 'done' : ''} ${draggable ? 'draggable' : ''} ${task.start ? 'scheduled' : ''} ${task.mode === 'maybe' ? 'maybe' : ''}"
              data-task-id="${task.id}"
+             data-clickable="task"
              ${raw(draggable ? 'draggable="true"' : '')}>
       <span class="check" data-action="toggle-done" data-task-id="${task.id}" role="checkbox" aria-checked="${task.done ? 'true' : 'false'}"></span>
       <div class="body">
         <h3>${task.title}</h3>
         ${task.note ? html`<p>${task.note}</p>` : ''}
-        ${task.start ? html`<p style="color: oklch(40% 0.06 35);"><strong>${fmtRange(task.start, task.end)}</strong></p>` : ''}
+        ${task.start ? html`<p class="task-time">${fmtRange(task.start, task.end)}</p>` : ''}
+        ${badge ? html`<span class="task-badge">${badge}</span>` : ''}
       </div>
       <span class="tag">${task.tag ?? 'task'}</span>
     </article>
   `;
 }
 
-function softNoteHTML(title, body) {
-  return html`<article class="soft-note"><h3>${title}</h3><p>${body}</p></article>`;
-}
+const softNoteHTML = (title, body) =>
+  html`<article class="soft-note"><h3>${title}</h3><p>${body}</p></article>`;
 
 function timeRailHTML() {
-  let out = '';
+  const rows = [];
   for (let h = START_HOUR; h < END_HOUR; h++) {
     const ampm = h >= 12 ? 'PM' : 'AM';
     const h12 = ((h + 11) % 12) + 1;
-    out += `<span>${h12} ${ampm}</span>`;
+    rows.push(html`<span>${h12} ${ampm}</span>`);
   }
-  return out;
+  return rows;
 }
 
 function attachTaskCommonHandlers(root) {
@@ -98,6 +106,40 @@ function attachTaskCommonHandlers(root) {
       updateTask(id, { done: !task.done });
     });
   });
+
+  // Click handlers for task cards and blocks → edit modal.
+  root.querySelectorAll('[data-clickable="task"]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action="toggle-done"]')) return;
+      // Don't trigger after a drag.
+      if (el.classList.contains('dragging')) return;
+      const id = el.dataset.taskId;
+      const task = getState().tasks.find((t) => t.id === id);
+      if (task) showTaskEditor(task);
+    });
+  });
+
+  // Calendar event clicks → read-only modal.
+  root.querySelectorAll('[data-clickable="event"]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.eventId;
+      const evt = getState().events.find((e) => e.id === id);
+      if (evt) showEventDetails(evt);
+    });
+  });
+}
+
+// ============================================================
+//   Empty-state cards (shown when no Google Calendar is connected)
+// ============================================================
+
+function notConnectedCard() {
+  return html`
+    <article class="soft-note empty-cal-note">
+      <h3>No calendar connected</h3>
+      <p>Connect Google Calendar in <strong>Calendars</strong> to see meetings as read-only blocks here.</p>
+    </article>
+  `;
 }
 
 // ============================================================
@@ -107,41 +149,47 @@ function attachTaskCommonHandlers(root) {
 export function renderSchedule(root, state) {
   const events = visibleEvents(state);
   const blocks = scheduledTasks(state);
-  const untimed = untimedTasks(state).filter((t) => !t.done);
+  const untimed = untimedTasks(state).filter((t) => !t.done && t.mode !== 'maybe');
+  const maybes = state.tasks.filter((t) => !t.done && t.mode === 'maybe');
   const dones = state.tasks.filter((t) => t.done && !t.start).slice(0, 3);
+  const hasAnyConnected = state.calendars.length > 0;
 
   const markup = html`
     <div class="schedule-grid">
       <div class="panel day-panel" aria-hidden="true">
-        <div class="time-rail">${raw(timeRailHTML())}</div>
+        <div class="time-rail">${timeRailHTML()}</div>
       </div>
 
       <div class="panel day-panel">
         <div class="timeline" id="dropZone" style="min-height:${raw(TIMELINE_HEIGHT + 'px')};" aria-label="Schedule timeline">
-          <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClock(state.nowMinutes).replace(' AM', '').replace(' PM', '')}</div>
-          ${raw(events.map((e) => blockEventHTML(state, e)).join(''))}
-          ${raw(blocks.map(blockTaskHTML).join(''))}
-          ${untimed.length > 0
-            ? html`<div class="drag-hint"><b>Drop here to time-block</b>Drag a list task onto an open slot. Calendar events stay read-only.</div>`
-            : ''}
+          <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClockShort(state.nowMinutes)}</div>
+          ${events.map((e) => blockEventHTML(state, e))}
+          ${blocks.map(blockTaskHTML)}
+          ${untimed.length === 0 && blocks.length === 0 && events.length === 0
+            ? html`<div class="drag-hint"><b>An empty day, softly</b>Add a task in <em>Quick add</em>, or connect a calendar to bring meetings in.</div>`
+            : untimed.length > 0
+              ? html`<div class="drag-hint"><b>Drop here to time-block</b>Drag a list task onto an open slot.</div>`
+              : ''}
         </div>
       </div>
 
       <aside class="panel task-panel" id="untimedDropZone">
         <div class="panel-title"><h3>Untimed</h3><span class="count">${untimed.length} task${untimed.length === 1 ? '' : 's'}</span></div>
-        ${untimed.length === 0
+        ${untimed.length === 0 && maybes.length === 0
           ? html`<div class="empty-state">Nothing untimed. Add a task or pull a block back here.</div>`
-          : raw(untimed.map((t) => taskCardHTML(t)).join(''))}
-        ${dones.length > 0 ? raw(dones.map((t) => taskCardHTML(t, { draggable: false })).join('')) : ''}
-        ${raw(softNoteHTML('Gentle rule', 'The schedule is a sketch, not a contract. Calendar blocks are anchors; planned blocks can move.'))}
+          : untimed.map((t) => taskCardHTML(t))}
+        ${maybes.length > 0 ? html`
+          <div class="panel-title" style="margin-top:8px;"><h3 style="font-size:16px;">Maybe</h3><span class="count">no pressure</span></div>
+          ${maybes.map((t) => taskCardHTML(t))}
+        ` : ''}
+        ${dones.length > 0 ? dones.map((t) => taskCardHTML(t, { draggable: false })) : ''}
+        ${!hasAnyConnected ? notConnectedCard() : softNoteHTML('Gentle rule', 'The schedule is a sketch, not a contract. Calendar blocks are anchors; planned blocks can move.')}
       </aside>
     </div>
   `;
   setHTML(root, markup);
 
-  // Drag list tasks onto the timeline.
   root.querySelectorAll('.task.draggable').forEach((el) => wireDragSource(el));
-  // Scheduled blocks are also drag sources (move on timeline / pull back to list).
   root.querySelectorAll('.block.planned').forEach((el) => wireDragSource(el));
 
   const timeline = root.querySelector('#dropZone');
@@ -193,20 +241,22 @@ export function renderList(root, state) {
         <div class="task-list">
           ${open.length === 0
             ? html`<div class="empty-state">All caught up. Want to add something gently?</div>`
-            : raw(open.map((t) => taskCardHTML(t, { draggable: false })).join(''))}
-          ${done.length > 0 ? raw(done.map((t) => taskCardHTML(t, { draggable: false })).join('')) : ''}
+            : open.map((t) => taskCardHTML(t, { draggable: false }))}
+          ${done.length > 0 ? done.map((t) => taskCardHTML(t, { draggable: false })) : ''}
         </div>
       </div>
 
       <aside class="panel task-panel">
         <div class="panel-title"><h3>Calendar today</h3><span class="count">read-only</span></div>
-        ${visibleEvts.length === 0
-          ? html`<div class="empty-state">No calendar events visible.</div>`
-          : raw(visibleEvts.map((e) => {
-              const color = calendarColor(state, e.calendarId);
-              return html`<div class="small-event"><span class="swatch" style="background: var(--${raw(esc(color))});"></span><span>${fmtClock(timeToMinutes(e.start)).replace(' AM','').replace(' PM','')} ${e.title}</span></div>`;
-            }).join(''))}
-        ${raw(softNoteHTML('List mode stays loose', 'Meetings are visible for context, but tasks remain untimed until you drag them into schedule view.'))}
+        ${state.calendars.length === 0
+          ? notConnectedCard()
+          : visibleEvts.length === 0
+            ? html`<div class="empty-state">No calendar events today.</div>`
+            : visibleEvts.map((e) => {
+                const color = calendarColor(state, e.calendarId);
+                return html`<div class="small-event" data-event-id="${e.id}" data-clickable="event"><span class="swatch" style="background: var(--${raw(esc(color))});"></span><span>${fmtClockShort(timeToMinutes(e.start))} ${e.title}</span></div>`;
+              })}
+        ${softNoteHTML('List mode stays loose', 'Meetings are visible for context, but tasks remain untimed until you drag them into schedule view.')}
       </aside>
     </div>
   `;
@@ -221,35 +271,64 @@ export function renderList(root, state) {
 export function renderBridge(root, state) {
   const events = visibleEvents(state);
   const blocks = scheduledTasks(state);
-  const open = state.tasks.filter((t) => !t.done && !t.start).slice(0, 4);
+  const open = state.tasks.filter((t) => !t.done && !t.start);
 
   const markup = html`
     <div class="split-preview">
       <div class="panel mini-schedule">
         <div class="mini-title"><h3>Schedule</h3><span class="tag">time-blocked</span></div>
-        <div class="mini-track" style="height:${raw(TIMELINE_HEIGHT + 'px')};">
-          ${raw(events.map((e) => {
+        <div class="mini-track" id="bridgeDropZone" style="height:${raw(TIMELINE_HEIGHT + 'px')};">
+          ${events.map((e) => {
             const color = calendarColor(state, e.calendarId);
             const top = minutesToTop(timeToMinutes(e.start));
-            return `<div class="mini-block cal-${esc(color)}" style="top:${top}px;">${esc(fmtClock(timeToMinutes(e.start)).replace(' AM','').replace(' PM',''))} ${esc(e.title)}</div>`;
-          }).join(''))}
-          ${raw(blocks.map((b) => {
+            return html`<div class="mini-block cal-${color}" data-event-id="${e.id}" data-clickable="event" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(e.start))} ${e.title}</div>`;
+          })}
+          ${blocks.map((b) => {
             const top = minutesToTop(timeToMinutes(b.start));
-            return `<div class="mini-block planned" style="top:${top}px;">${esc(fmtClock(timeToMinutes(b.start)).replace(' AM','').replace(' PM',''))} ${esc(b.title)}</div>`;
-          }).join(''))}
+            return html`<div class="mini-block planned" data-task-id="${b.id}" data-clickable="task" draggable="true" style="top:${raw(top + 'px')};">${fmtClockShort(timeToMinutes(b.start))} ${b.title}</div>`;
+          })}
+          ${events.length + blocks.length === 0
+            ? html`<div class="empty-state" style="margin:16px;">Drop a list task here to time-block it.</div>`
+            : ''}
         </div>
       </div>
 
-      <div class="panel mini-list">
+      <div class="panel mini-list" id="bridgeListZone">
         <div class="mini-title"><h3>List</h3><span class="tag">flexible</span></div>
         ${open.length === 0
           ? html`<div class="empty-state">Untimed list is clear.</div>`
-          : raw(open.map((t) => taskCardHTML(t, { draggable: false })).join(''))}
-        ${raw(softNoteHTML('Move both ways', 'Time-block a task when it helps. Pull it back to the list when the day changes.'))}
+          : open.map((t) => taskCardHTML(t))}
+        ${softNoteHTML('Move both ways', 'Time-block a task by dragging onto the schedule; pull it back to the list when the day changes.')}
       </div>
     </div>
   `;
   setHTML(root, markup);
+
+  root.querySelectorAll('.task.draggable, .mini-block.planned').forEach((el) => wireDragSource(el));
+
+  const dropTime = root.querySelector('#bridgeDropZone');
+  if (dropTime) {
+    wireDropZone(dropTime, {
+      onDrop: ({ taskId, y }) => {
+        const minutes = pxToMinutes(y);
+        const task = getState().tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        const duration = task.start && task.end
+          ? timeToMinutes(task.end) - timeToMinutes(task.start)
+          : 30;
+        const start = minutesToTime(minutes);
+        const end = minutesToTime(Math.min(minutes + duration, END_HOUR * 60));
+        scheduleTask(taskId, start, end);
+      },
+    });
+  }
+  const dropList = root.querySelector('#bridgeListZone');
+  if (dropList) {
+    wireDropZone(dropList, {
+      onDrop: ({ taskId }) => removeTaskSchedule(taskId),
+    });
+  }
+
   attachTaskCommonHandlers(root);
 }
 
@@ -260,9 +339,11 @@ export function renderBridge(root, state) {
 const ADD_FORM_DEFAULT = {
   title: '',
   note: '',
-  mode: 'task',          // 'task' | 'block' | 'maybe'
-  bucket: 'list',        // 'list' | 'morning' | 'after-meetings' | 'no-pressure'
+  mode: 'task',                  // 'task' | 'block' | 'maybe'
+  bucket: 'list',                // 'list' | 'morning' | 'afternoon' | 'no-pressure'
   startHour: 9,
+  startMinute: 0,
+  durationMinutes: 30,
 };
 
 let addFormDraft = { ...ADD_FORM_DEFAULT };
@@ -270,7 +351,7 @@ let addFormDraft = { ...ADD_FORM_DEFAULT };
 export function resetAddForm() { addFormDraft = { ...ADD_FORM_DEFAULT }; }
 
 function previewSubtitle(d) {
-  if (d.mode === 'block') return `Preview: scheduled ${fmtClock(d.startHour * 60)}`;
+  if (d.mode === 'block') return `Preview: scheduled ${fmtClock(d.startHour * 60 + d.startMinute)} for ${d.durationMinutes} min`;
   if (d.mode === 'maybe') return 'Preview: marked maybe — no pressure';
   return 'Preview: today’s list';
 }
@@ -294,19 +375,31 @@ export function renderAdd(root, state) {
               <button type="button" data-value="maybe" class="${d.mode==='maybe'?'active':''}">Maybe</button>
             </div>
           </div>
-          <div class="field" id="blockTimeField" style="${raw(d.mode === 'block' ? '' : 'display:none;')}">
-            <label for="startHour">Start hour</label>
-            <input class="input" type="number" min="${START_HOUR}" max="${END_HOUR-1}" step="1" id="startHour" name="startHour" value="${d.startHour}">
-          </div>
+          ${d.mode === 'block' ? html`
+            <div class="field">
+              <label>Time</label>
+              <div class="time-row">
+                <input class="input small" type="number" min="${START_HOUR}" max="${END_HOUR-1}" step="1" id="startHour" value="${d.startHour}">
+                <span>:</span>
+                <input class="input small" type="number" min="0" max="59" step="15" id="startMinute" value="${d.startMinute}">
+                <span class="muted">for</span>
+                <input class="input small" type="number" min="15" max="240" step="15" id="durationMinutes" value="${d.durationMinutes}">
+                <span class="muted">min</span>
+              </div>
+            </div>
+          ` : ''}
           <div class="field">
             <label for="note">Tiny note</label>
             <textarea class="input" id="note" name="note" placeholder="Optional context...">${d.note}</textarea>
           </div>
-          <div class="choice-row" data-group="bucket">
-            <button type="button" data-value="list"            class="choice ${d.bucket==='list'?'selected':''}">Today's list</button>
-            <button type="button" data-value="morning"         class="choice ${d.bucket==='morning'?'selected':''}">Morning</button>
-            <button type="button" data-value="after-meetings"  class="choice ${d.bucket==='after-meetings'?'selected':''}">After meetings</button>
-            <button type="button" data-value="no-pressure"     class="choice ${d.bucket==='no-pressure'?'selected':''}">No pressure</button>
+          <div class="field">
+            <label>Bucket</label>
+            <div class="choice-row" data-group="bucket">
+              <button type="button" data-value="list"        class="choice ${d.bucket==='list'?'selected':''}">Today's list</button>
+              <button type="button" data-value="morning"     class="choice ${d.bucket==='morning'?'selected':''}">Morning</button>
+              <button type="button" data-value="afternoon"   class="choice ${d.bucket==='afternoon'?'selected':''}">After meetings</button>
+              <button type="button" data-value="no-pressure" class="choice ${d.bucket==='no-pressure'?'selected':''}">No pressure</button>
+            </div>
           </div>
           <div class="choice-row" style="justify-content: flex-end; margin-top: 18px;">
             <button type="button" class="button" data-action="cancel-add">Cancel</button>
@@ -316,11 +409,16 @@ export function renderAdd(root, state) {
       </div>
       <aside class="panel task-panel">
         <div class="panel-title"><h3>Inline preview</h3><span class="count">live</span></div>
-        ${raw(softNoteHTML('Natural language, optional', 'Pick "Time block" to land it on the schedule, "Maybe" to keep it weightless.'))}
+        ${softNoteHTML('What sticks', 'Mode and bucket persist on the task — Maybe lives in its own muted area, blocks land on the schedule, buckets show as pill labels.')}
         <article class="task">
           <span class="check"></span>
-          <div class="body" data-role="preview-body"><h3 data-role="preview-title">${d.title || 'New task title'}</h3><p data-role="preview-sub">${previewSubtitle(d)}</p></div>
-          <span class="tag">new</span>
+          <div class="body" data-role="preview-body">
+            <h3 data-role="preview-title">${d.title || 'New task title'}</h3>
+            <p data-role="preview-sub">${previewSubtitle(d)}</p>
+            ${d.mode === 'maybe' ? html`<span class="task-badge">maybe</span>` : ''}
+            ${d.mode === 'block' ? html`<span class="task-badge">time block</span>` : ''}
+          </div>
+          <span class="tag">${d.bucket === 'list' ? 'task' : d.bucket}</span>
         </article>
       </aside>
     </div>
@@ -336,15 +434,20 @@ export function renderAdd(root, state) {
   form.querySelector('#note').addEventListener('input', (e) => {
     addFormDraft.note = e.target.value;
   });
-  const startInput = form.querySelector('#startHour');
-  if (startInput) {
-    startInput.addEventListener('input', (e) => {
-      const v = Math.max(START_HOUR, Math.min(END_HOUR - 1, Number(e.target.value) || START_HOUR));
-      addFormDraft.startHour = v;
+  ['startHour','startMinute','durationMinutes'].forEach((id) => {
+    const el = form.querySelector('#' + id);
+    if (!el) return;
+    el.addEventListener('input', (e) => {
+      const v = Number(e.target.value) || 0;
+      addFormDraft[id] = id === 'startHour'
+        ? Math.max(START_HOUR, Math.min(END_HOUR - 1, v))
+        : id === 'startMinute'
+          ? Math.max(0, Math.min(59, v))
+          : Math.max(15, Math.min(240, v));
       const sub = root.querySelector('[data-role="preview-sub"]');
       if (sub) sub.textContent = previewSubtitle(addFormDraft);
     });
-  }
+  });
   form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
     btn.addEventListener('click', () => {
       addFormDraft.mode = btn.dataset.value;
@@ -368,16 +471,20 @@ export function renderAdd(root, state) {
       window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Give it a name first.' }));
       return;
     }
-    const tag =
-      addFormDraft.bucket === 'morning' ? 'morning' :
-      addFormDraft.bucket === 'after-meetings' ? 'afternoon' :
-      addFormDraft.bucket === 'no-pressure' ? 'maybe' : 'task';
+    const tag = addFormDraft.bucket === 'list' ? 'task' : addFormDraft.bucket;
 
-    const base = { title, note: addFormDraft.note || '', tag };
+    const base = {
+      title,
+      note: addFormDraft.note || '',
+      tag,
+      mode: addFormDraft.mode,
+      bucket: addFormDraft.bucket,
+    };
     if (addFormDraft.mode === 'block') {
-      const h = addFormDraft.startHour;
-      base.start = `${String(h).padStart(2,'0')}:00`;
-      base.end   = `${String(h).padStart(2,'0')}:30`;
+      const startMin = addFormDraft.startHour * 60 + addFormDraft.startMinute;
+      const endMin = Math.min(startMin + addFormDraft.durationMinutes, END_HOUR * 60);
+      base.start = minutesToTime(startMin);
+      base.end   = minutesToTime(endMin);
     }
     const goingToSchedule = addFormDraft.mode === 'block';
     addTask(base);
@@ -417,13 +524,13 @@ export function renderReview(root, state) {
           <div class="meter-card"><b>${counts.partial}</b><span>partial</span></div>
         </div>
         ${counts.open > 0
-          ? html`<p style="margin-top:14px; font-size:12px;"><strong>${counts.open}</strong> still need a gentle decision.</p>`
-          : html`<p style="margin-top:14px; font-size:12px; color: var(--sage); font-weight:700;">Every task has a soft landing. Sleep well.</p>`}
+          ? html`<p class="review-hint">${counts.open} still need a gentle decision.</p>`
+          : html`<p class="review-hint review-done">Every task has a soft landing. Sleep well.</p>`}
       </aside>
       <div class="review-list">
         ${candidates.length === 0
           ? html`<div class="empty-state panel" style="padding:30px;">Nothing to review. Add a few tasks and come back.</div>`
-          : raw(candidates.map((t) => reviewCardHTML(t, state)).join(''))}
+          : candidates.map((t) => reviewCardHTML(t, state))}
       </div>
     </div>
   `;
@@ -437,13 +544,13 @@ function reviewCardHTML(task, state) {
   return html`
     <article class="review-card" data-task-id="${task.id}">
       <h3>${task.title}</h3>
-      <p>${task.start ? raw(esc('Time-blocked ' + fmtRange(task.start, task.end))) : 'Untimed task'} ${task.done && !dec.decision ? html`<span class="tag" style="margin-left:8px;">checked off today</span>` : ''}</p>
+      <p>${task.start ? `Time-blocked ${fmtRange(task.start, task.end)}` : 'Untimed task'}${task.done && !dec.decision ? ' · already checked off' : ''}</p>
       <div class="choice-row" data-group="decision">
         <button type="button" class="choice ${sel('done')}" data-value="done">Done enough</button>
         <button type="button" class="choice ${sel('roll')}" data-value="roll">Roll to tomorrow</button>
         <button type="button" class="choice ${sel('partial')}" data-value="partial">Partial</button>
       </div>
-      ${dec.decision === 'partial' ? raw(partialBoxHTML(task, dec)) : ''}
+      ${dec.decision === 'partial' ? partialBoxHTML(task, dec) : ''}
     </article>
   `;
 }
@@ -513,9 +620,11 @@ function attachReviewHandlers(root) {
 // ============================================================
 
 export function renderSettings(root, state) {
-  const selectedId = root.dataset.selectedCalendar || state.calendars[0].id;
-  const selected = state.calendars.find((c) => c.id === selectedId) || state.calendars[0];
-  const shortName = selected.name.split(' / ')[0];
+  const fallbackId = state.calendars[0]?.id;
+  const selectedId = root.dataset.selectedCalendar || fallbackId;
+  const selected = state.calendars.find((c) => c.id === selectedId) || null;
+  const shortName = selected ? selected.name.split(' / ')[0] : '';
+  const isSyncing = !!state.googleSyncing;
 
   const markup = html`
     <div class="settings-grid">
@@ -525,19 +634,29 @@ export function renderSettings(root, state) {
             <h3>Calendar layers</h3>
             <p>Connected calendars are read-only in planning. Colors are chosen by you so layers feel predictable.</p>
           </div>
-          <button class="button" data-action="connect-another">Connect another</button>
+          <div class="actions" style="gap:8px;">
+            ${state.googleConnected ? html`<button class="button" data-action="refresh-google" ${raw(isSyncing ? 'disabled' : '')}>${isSyncing ? 'Syncing…' : 'Refresh'}</button>` : ''}
+            <button class="button primary" data-action="connect-google">${state.googleConnected ? 'Reconnect' : 'Connect Google'}</button>
+          </div>
         </div>
-        ${raw(state.calendars.map((c) => calendarRowHTML(c, c.id === selected.id)).join(''))}
+        ${state.calendars.length === 0
+          ? html`<div class="empty-state" style="margin-top:16px;">No calendars yet. Connect Google Calendar to bring your meetings in as read-only blocks.</div>`
+          : state.calendars.map((c) => calendarRowHTML(c, c.id === selectedId))}
+        ${state.googleError ? html`<div class="empty-state" style="margin-top:16px; color: var(--rose); border-color: var(--rose);">${state.googleError}</div>` : ''}
       </div>
       <aside class="panel task-panel">
         <div class="panel-title"><h3>Choose color</h3><span class="count">manual</span></div>
-        <p style="margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45;">
-          Editing <strong>${shortName}</strong>. Colors are never auto-assigned. Pick once, change anytime.
-        </p>
-        <div class="palette-row">
-          ${raw(PALETTE.map((p) => `<span class="color-dot ${p === selected.color ? 'selected' : ''}" data-action="pick-color" data-color="${esc(p)}" style="background: var(--${esc(p)});" title="${esc(p)}"></span>`).join(''))}
-        </div>
-        ${raw(softNoteHTML('Layer preview', `Events from ${shortName} appear as soft ${selected.color} blocks with a "Calendar" label and no edit handles.`))}
+        ${selected ? html`
+          <p style="margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45;">
+            Editing <strong>${shortName}</strong>. Colors are never auto-assigned. Pick once, change anytime.
+          </p>
+          <div class="palette-row">
+            ${PALETTE.map((p) => html`<span class="color-dot ${p === selected.color ? 'selected' : ''}" data-action="pick-color" data-color="${p}" style="background: var(--${raw(esc(p))});" title="${p}"></span>`)}
+          </div>
+          ${softNoteHTML('Layer preview', `Events from ${shortName} appear as soft ${selected.color} blocks with a "Calendar" label and no edit handles.`)}
+        ` : html`
+          <p style="margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45;">No calendar selected. Connect Google to begin.</p>
+        `}
       </aside>
     </div>
   `;
@@ -547,10 +666,10 @@ export function renderSettings(root, state) {
 
 function calendarRowHTML(cal, isSelected) {
   return html`
-    <div class="calendar-row" data-cal-id="${cal.id}" style="${raw(isSelected ? 'box-shadow: inset 4px 0 0 var(--sage);' : '')}">
+    <div class="calendar-row ${isSelected ? 'selected' : ''}" data-cal-id="${cal.id}">
       <div data-action="select-calendar" style="cursor:pointer;">
         <h3>${cal.name}</h3>
-        <p>${cal.subtitle}</p>
+        <p>${cal.subtitle || cal.id}</p>
       </div>
       <div class="color-picker">
         <span class="color-dot" style="background: var(--${raw(esc(cal.color))});"></span>
@@ -578,15 +697,18 @@ function attachSettingsHandlers(root) {
 
   root.querySelectorAll('[data-action="pick-color"]').forEach((swatch) => {
     swatch.addEventListener('click', () => {
-      const id = root.dataset.selectedCalendar || getState().calendars[0].id;
+      const id = root.dataset.selectedCalendar || getState().calendars[0]?.id;
+      if (!id) return;
       setCalendarColor(id, swatch.dataset.color);
       window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Color updated.' }));
     });
   });
 
-  const connectBtn = root.querySelector('[data-action="connect-another"]');
-  if (connectBtn) connectBtn.addEventListener('click', () => {
-    window.dispatchEvent(new CustomEvent('app:navigate', { detail: 'connect' }));
+  root.querySelector('[data-action="connect-google"]')?.addEventListener('click', () => {
+    window.dispatchEvent(new CustomEvent('app:google-connect'));
+  });
+  root.querySelector('[data-action="refresh-google"]')?.addEventListener('click', () => {
+    window.dispatchEvent(new CustomEvent('app:google-refresh'));
   });
 }
 
@@ -595,6 +717,7 @@ function attachSettingsHandlers(root) {
 // ============================================================
 
 export function renderConnect(root, state) {
+  const isSyncing = !!state.googleSyncing;
   const markup = html`
     <div class="connect-state">
       <section class="panel connect-hero">
@@ -604,9 +727,10 @@ export function renderConnect(root, state) {
           <p>Get It uses Google Calendar as a read-only layer, so meetings and appointments become gentle boundaries around the day you plan.</p>
         </div>
         <div class="choice-row">
-          <button class="button primary" data-action="connect-google">Connect Google Calendar</button>
+          <button class="button primary" data-action="connect-google" ${raw(isSyncing ? 'disabled' : '')}>${isSyncing ? 'Connecting…' : 'Connect Google Calendar'}</button>
           <button class="button" data-action="skip-google">Set up without calendar</button>
         </div>
+        ${state.googleError ? html`<div class="empty-state" style="margin-top:14px; color: var(--rose); border-color: var(--rose);">${state.googleError}</div>` : ''}
       </section>
       <aside class="panel preview-stack">
         <div class="permission-card">
@@ -618,11 +742,10 @@ export function renderConnect(root, state) {
           </div>
         </div>
         <div class="floating-day">
-          <h4>Preview after connection</h4>
-          ${raw(state.events.map((e) => {
-            const c = calendarColor(state, e.calendarId);
-            return `<div class="small-event"><span class="swatch" style="background: var(--${esc(c)});"></span><span>${esc(fmtClock(timeToMinutes(e.start)).replace(' AM','').replace(' PM',''))} ${esc(e.title)}</span></div>`;
-          }).join(''))}
+          <h4>One-time setup</h4>
+          <p style="margin:0; color: var(--muted); font-size: 13px; line-height:1.45;">
+            You'll need a Google Cloud OAuth client. The README walks through the four-minute setup; once <code>credentials.json</code> is in place, this button just works.
+          </p>
         </div>
       </aside>
     </div>
@@ -630,14 +753,12 @@ export function renderConnect(root, state) {
   setHTML(root, markup);
 
   root.querySelector('[data-action="connect-google"]').addEventListener('click', () => {
-    setState({ hasCompletedFirstRun: true });
-    window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Calendar connected (mock). Welcome in.' }));
-    window.dispatchEvent(new CustomEvent('app:navigate', { detail: 'schedule' }));
+    window.dispatchEvent(new CustomEvent('app:google-connect'));
   });
   root.querySelector('[data-action="skip-google"]').addEventListener('click', () => {
     setState({ hasCompletedFirstRun: true });
-    window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Skipped. You can connect later in Calendars.' }));
-    window.dispatchEvent(new CustomEvent('app:navigate', { detail: 'schedule' }));
+    window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Skipped. Connect anytime in Calendars.' }));
+    window.dispatchEvent(new CustomEvent('app:navigate', { detail: 'list' }));
   });
 }
 
@@ -654,12 +775,162 @@ export function renderSidebarSummary(state) {
   }));
   const markup = html`
     <b>Calendar layers</b>
-    ${raw(counts.map((c) => `
-      <div class="layer-row">
-        <span><span class="swatch" style="background: var(--${esc(c.color)});"></span> ${esc(c.name.split(' / ')[0])}</span>
-        <span>${c.count} event${c.count === 1 ? '' : 's'}</span>
-      </div>
-    `).join(''))}
+    ${counts.length === 0
+      ? html`<p style="margin:6px 0 0; color: var(--muted); font-size: 12px; line-height:1.45;">No calendars connected yet.</p>`
+      : counts.map((c) => html`
+        <div class="layer-row">
+          <span><span class="swatch" style="background: var(--${raw(esc(c.color))});"></span> ${c.name.split(' / ')[0]}</span>
+          <span>${c.count} event${c.count === 1 ? '' : 's'}</span>
+        </div>
+      `)}
   `;
   setHTML(node, markup);
+}
+
+// ============================================================
+//   Modals — task editor + event details
+// ============================================================
+
+function showTaskEditor(task) {
+  const draft = {
+    title: task.title,
+    note: task.note || '',
+    tag: task.tag || 'task',
+    mode: task.mode || 'task',
+    start: task.start || '',
+    end: task.end || '',
+  };
+
+  const buildBody = () => html`
+    <form class="modal-body" autocomplete="off">
+      <div class="field">
+        <label>Title</label>
+        <input class="input" name="title" value="${draft.title}">
+      </div>
+      <div class="field">
+        <label>Note</label>
+        <textarea class="input" name="note">${draft.note}</textarea>
+      </div>
+      <div class="field">
+        <label>Mode</label>
+        <div class="segmented" data-group="mode">
+          <button type="button" data-value="task"  class="${draft.mode==='task'?'active':''}">Task</button>
+          <button type="button" data-value="block" class="${draft.mode==='block'?'active':''}">Time block</button>
+          <button type="button" data-value="maybe" class="${draft.mode==='maybe'?'active':''}">Maybe</button>
+        </div>
+      </div>
+      ${draft.mode === 'block' ? html`
+        <div class="field">
+          <label>Time</label>
+          <div class="time-row">
+            <input class="input small" type="time" name="start" value="${draft.start || '09:00'}">
+            <span class="muted">to</span>
+            <input class="input small" type="time" name="end" value="${draft.end || '09:30'}">
+          </div>
+        </div>
+      ` : ''}
+      <div class="field">
+        <label>Tag</label>
+        <input class="input" name="tag" value="${draft.tag}">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button danger" data-action="delete">Delete</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="button" data-action="cancel">Cancel</button>
+        <button type="submit" class="button primary">Save</button>
+      </div>
+    </form>
+  `;
+
+  openModal({
+    title: 'Edit task',
+    bodyHTML: buildBody(),
+    onMount: (modalEl, { close, replace }) => {
+      const form = modalEl.querySelector('form');
+
+      const refresh = () => {
+        Object.assign(draft, {
+          title: form.querySelector('[name="title"]').value,
+          note:  form.querySelector('[name="note"]').value,
+          tag:   form.querySelector('[name="tag"]').value,
+          start: form.querySelector('[name="start"]')?.value || '',
+          end:   form.querySelector('[name="end"]')?.value   || '',
+        });
+        replace(buildBody());
+      };
+
+      form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          // Capture other field edits before re-render.
+          draft.title = form.querySelector('[name="title"]').value;
+          draft.note  = form.querySelector('[name="note"]').value;
+          draft.tag   = form.querySelector('[name="tag"]').value;
+          draft.start = form.querySelector('[name="start"]')?.value || draft.start;
+          draft.end   = form.querySelector('[name="end"]')?.value   || draft.end;
+          draft.mode  = btn.dataset.value;
+          if (draft.mode === 'block' && !draft.start) { draft.start = '09:00'; draft.end = '09:30'; }
+          replace(buildBody());
+        });
+      });
+
+      form.querySelector('[data-action="cancel"]').addEventListener('click', close);
+      form.querySelector('[data-action="delete"]').addEventListener('click', () => {
+        deleteTask(task.id);
+        close();
+        window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Task removed.' }));
+      });
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = form.querySelector('[name="title"]').value.trim();
+        if (!title) return;
+        const patch = {
+          title,
+          note: form.querySelector('[name="note"]').value,
+          tag: form.querySelector('[name="tag"]').value || 'task',
+          mode: draft.mode,
+        };
+        if (draft.mode === 'block') {
+          patch.start = form.querySelector('[name="start"]').value;
+          patch.end   = form.querySelector('[name="end"]').value;
+        } else {
+          patch.start = undefined;
+          patch.end   = undefined;
+        }
+        updateTask(task.id, patch);
+        close();
+      });
+    },
+  });
+}
+
+function showEventDetails(evt) {
+  const state = getState();
+  const cal = state.calendars.find((c) => c.id === evt.calendarId);
+  const calName = cal ? cal.name : 'Calendar';
+
+  const body = html`
+    <div class="modal-body">
+      <p class="modal-lead">From <strong>${calName.split(' / ')[0]}</strong></p>
+      <div class="event-detail">
+        <h2>${evt.title}</h2>
+        <p class="muted">${fmtRange(evt.start, evt.end)}</p>
+        ${evt.location ? html`<p>${evt.location}</p>` : ''}
+        ${evt.description ? html`<p style="white-space:pre-line;">${evt.description}</p>` : ''}
+        <p class="muted" style="margin-top:14px; font-size:12px;">Calendar events are read-only inside Get It. Edit them in Google Calendar.</p>
+      </div>
+      <div class="modal-footer">
+        <span style="flex:1;"></span>
+        <button type="button" class="button" data-action="close">Close</button>
+      </div>
+    </div>
+  `;
+
+  openModal({
+    title: 'Calendar event',
+    bodyHTML: body,
+    onMount: (modalEl, { close }) => {
+      modalEl.querySelector('[data-action="close"]').addEventListener('click', close);
+    },
+  });
 }
