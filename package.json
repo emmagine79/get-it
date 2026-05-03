@@ -1,0 +1,13 @@
+{
+  "name": "get-it",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A calm day-planning desktop app for neurodivergent planners.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^32.2.0"
+  }
+}

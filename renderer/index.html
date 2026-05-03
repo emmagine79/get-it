@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self';">
+  <title>Get It</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="desktop" role="application" aria-label="Get It day planner">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><span class="check-glyph"></span></div>
+        <div>
+          <h1>Get It</h1>
+          <p>Today, softly planned</p>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Screens">
+        <button class="tab active" data-screen="schedule"><span class="tab-icon">T</span><span>Schedule</span></button>
+        <button class="tab" data-screen="list"><span class="tab-icon">C</span><span>List</span></button>
+        <button class="tab" data-screen="bridge"><span class="tab-icon">B</span><span>Both views</span></button>
+        <button class="tab" data-screen="add"><span class="tab-icon">+</span><span>Quick add</span></button>
+        <button class="tab" data-screen="review"><span class="tab-icon">R</span><span>Evening review</span></button>
+        <button class="tab" data-screen="settings"><span class="tab-icon">S</span><span>Calendars</span></button>
+        <button class="tab" data-screen="connect"><span class="tab-icon">G</span><span>First run</span></button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="cal-mini" id="calMini"></div>
+        <button class="button" data-screen-target="add">Add something</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar" id="topbar">
+        <div class="topbar-main">
+          <div class="today-kicker"><span class="pulse"></span><span id="dateLabel">Wednesday, May 6</span></div>
+          <h2 id="screenTitle">Today in schedule</h2>
+        </div>
+        <div class="actions no-drag">
+          <button class="button" data-screen-target="bridge">Split view</button>
+          <button class="button primary" data-screen-target="add">Quick add</button>
+        </div>
+        <div class="window-controls no-drag" aria-label="Window controls">
+          <button class="window-button minimize" type="button" aria-label="Minimize" id="winMin"></button>
+          <button class="window-button maximize" type="button" aria-label="Maximize" id="winMax"></button>
+          <button class="window-button close" type="button" aria-label="Close" id="winClose"></button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="screen active" id="schedule"></div>
+        <div class="screen" id="list"></div>
+        <div class="screen" id="bridge"></div>
+        <div class="screen" id="add"></div>
+        <div class="screen" id="review"></div>
+        <div class="screen" id="settings"></div>
+        <div class="screen" id="connect"></div>
+      </section>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
