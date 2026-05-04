@@ -26,6 +26,24 @@ test('topbar includes a compact persisted dark mode toggle', () => {
   assert.match(css, /\.theme-toggle/);
 });
 
+test('dark mode keeps review cards, meter cards, and task metadata readable', () => {
+  const css = read('renderer/styles.css');
+
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.review-card/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.meter-card/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.partial-box/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.task\s+\.task-time/);
+  assert.match(css, /--dark-card/);
+});
+
+test('dark mode timeline edge fades use dark surfaces instead of white bars', () => {
+  const css = read('renderer/styles.css');
+
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.timeline-pane::before/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.timeline-pane::after/);
+  assert.match(css, /--timeline-fade/);
+});
+
 test('completed first-run state removes onboarding from primary navigation', () => {
   const app = read('renderer/app.js');
   const css = read('renderer/styles.css');
