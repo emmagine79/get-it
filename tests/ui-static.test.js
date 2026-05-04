@@ -44,6 +44,18 @@ test('dark mode timeline edge fades use dark surfaces instead of white bars', ()
   assert.match(css, /--timeline-fade/);
 });
 
+test('dark mode task editor modal keeps chrome, labels, inputs, and actions accessible', () => {
+  const css = read('renderer/styles.css');
+
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.modal-shell/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.modal-title/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.modal-body\s+\.field\s+label/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.modal-body\s+\.input/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.modal-body\s+\.segmented/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.modal-body\s+\.button\.danger/);
+  assert.match(css, /--dark-modal/);
+});
+
 test('completed first-run state removes onboarding from primary navigation', () => {
   const app = read('renderer/app.js');
   const css = read('renderer/styles.css');

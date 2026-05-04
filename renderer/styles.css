@@ -45,6 +45,7 @@
   --accent:  oklch(66% 0.11 30);
   --dark-card: oklch(25% 0.016 62 / 0.9);
   --dark-card-strong: oklch(31% 0.024 64 / 0.94);
+  --dark-modal: oklch(21% 0.014 62);
   --dark-planned: oklch(36% 0.045 76);
   --timeline-fade: oklch(19% 0.012 64 / 0.96);
 
@@ -181,7 +182,56 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   color: var(--fg);
 }
 :root[data-theme="dark"] .modal-body .input {
-  background: oklch(24% 0.016 62 / 0.82);
+  background: oklch(29% 0.018 62);
+}
+:root[data-theme="dark"] .modal-overlay {
+  background: oklch(8% 0.012 62 / 0.72);
+}
+:root[data-theme="dark"] .modal-shell {
+  background: var(--dark-modal);
+  border-color: oklch(47% 0.02 62);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .modal-title {
+  color: var(--fg);
+}
+:root[data-theme="dark"] .modal-close {
+  background: oklch(30% 0.016 62);
+  color: oklch(82% 0.014 72);
+}
+:root[data-theme="dark"] .modal-close:hover {
+  background: oklch(38% 0.02 62);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .modal-body .field label {
+  color: oklch(84% 0.014 72);
+}
+:root[data-theme="dark"] .modal-body .input {
+  border-color: oklch(48% 0.018 62);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .modal-body .input:focus {
+  border-color: oklch(72% 0.09 35);
+  box-shadow: 0 0 0 3px oklch(72% 0.09 35 / 0.18);
+}
+:root[data-theme="dark"] .modal-body .segmented {
+  background: oklch(29% 0.018 62);
+}
+:root[data-theme="dark"] .modal-body .segmented button {
+  color: oklch(80% 0.014 72);
+}
+:root[data-theme="dark"] .modal-body .segmented button.active {
+  background: oklch(38% 0.03 55);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .modal-body .button.danger {
+  background: oklch(29% 0.025 30);
+  border-color: oklch(57% 0.12 28);
+  color: oklch(76% 0.16 28);
+}
+:root[data-theme="dark"] .modal-body .button.danger:hover {
+  background: oklch(35% 0.04 30);
+  color: oklch(86% 0.14 28);
 }
 :root[data-theme="dark"] .timeline-pane::before {
   background: linear-gradient(180deg, var(--timeline-fade), transparent);
