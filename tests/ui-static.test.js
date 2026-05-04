@@ -56,6 +56,19 @@ test('schedule and split timelines preserve scroll position across rerenders', (
   assert.match(screens, /data-role="bridge-scroll"/);
 });
 
+test('schedule scrollers contain mouse wheel movement inside their panes', () => {
+  const app = read('renderer/app.js');
+  const screens = read('renderer/screens.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(app, /function bindContainedWheelScroll\(\)/);
+  assert.match(app, /closest\('\[data-scroll-lock\]'\)/);
+  assert.match(app, /preventDefault\(\)/);
+  assert.match(screens, /data-role="schedule-scroll" data-scroll-lock/);
+  assert.match(screens, /data-role="bridge-scroll" data-scroll-lock/);
+  assert.match(css, /overscroll-behavior:\s*contain/);
+});
+
 test('schedule blocks expose resize handles for drag duration editing', () => {
   const screens = read('renderer/screens.js');
   const css = read('renderer/styles.css');
@@ -72,6 +85,22 @@ test('split view mini schedule includes a visible time rail', () => {
 
   assert.match(screens, /class="mini-time-rail"/);
   assert.match(css, /\.mini-time-rail/);
+});
+
+test('split view keeps its helper note visually separated from the empty list', () => {
+  const css = read('renderer/styles.css');
+
+  assert.match(css, /\.mini-list\s*>\s*\.empty-state\s*\+\s*\.soft-note/);
+  assert.match(css, /margin-top:\s*16px/);
+});
+
+test('quick add preview keeps badges and tags in the task body metadata row', () => {
+  const screens = read('renderer/screens.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(screens, /class="task preview-task"/);
+  assert.match(screens, /data-role="preview-meta"/);
+  assert.match(css, /\.preview-task/);
 });
 
 test('review decisions can be undone and partial progress has live fill', () => {

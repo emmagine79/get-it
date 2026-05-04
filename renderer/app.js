@@ -85,6 +85,24 @@ function navigate(id) {
   setState({ currentScreen: id });
 }
 
+function bindContainedWheelScroll() {
+  document.body.addEventListener('wheel', (event) => {
+    const scroller = event.target.closest('[data-scroll-lock]');
+    if (!scroller) return;
+
+    const canScroll = scroller.scrollHeight > scroller.clientHeight;
+    if (!canScroll) return;
+
+    const atTop = scroller.scrollTop <= 0;
+    const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+    const movingPastTop = event.deltaY < 0 && atTop;
+    const movingPastBottom = event.deltaY > 0 && atBottom;
+
+    if (movingPastTop || movingPastBottom) event.preventDefault();
+    event.stopPropagation();
+  }, { passive: false });
+}
+
 // ------------------------------ Toast ------------------------------
 
 let toastTimer = null;
@@ -161,6 +179,8 @@ async function bootGoogleStatus() {
 // ------------------------------ Boot ------------------------------
 
 function init() {
+  bindContainedWheelScroll();
+
   document.body.addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-screen], [data-screen-target]');
     if (!trigger) return;

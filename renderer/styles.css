@@ -45,7 +45,7 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   user-select: none;
-  overflow: auto;
+  overflow: hidden;
 }
 
 button, input, textarea { font: inherit; }
@@ -217,6 +217,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 
 .main {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-rows: auto 1fr;
   background:
@@ -249,7 +250,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 }
 .topbar h2 {
   margin: 4px 0 0;
-  font-size: clamp(26px, 2.9vw, 36px);
+  font-size: clamp(28px, 2.25rem, 36px);
   line-height: 1;
 }
 
@@ -317,12 +318,21 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 
 .content {
   min-height: 0;
+  height: 100%;
   position: relative;
   padding: 22px 26px 26px;
+  overflow: hidden;
+}
+.screen { display: none; min-height: 0; animation: fadeIn 200ms ease; }
+.screen.active {
+  display: block;
+  height: 100%;
   overflow: auto;
 }
-.screen { display: none; min-height: 100%; animation: fadeIn 200ms ease; }
-.screen.active { display: block; }
+#schedule.active,
+#bridge.active {
+  overflow: hidden;
+}
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -339,16 +349,19 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 
 .schedule-grid {
   display: grid;
-  grid-template-columns: minmax(560px, 1fr) minmax(320px, 0.76fr);
+  grid-template-columns: minmax(540px, 1fr) minmax(300px, 0.72fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
 }
 
 /* The whole rail + timeline scrolls inside this pane. The visible
    height is fixed; scrolling the pane scrolls both columns together. */
 .timeline-pane {
   position: relative;
-  height: 600px;
+  height: 100%;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
 }
@@ -361,6 +374,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
@@ -527,7 +541,14 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 
 /* ------------------------------ Task panel / cards ------------------------------ */
 
-.task-panel { display: grid; gap: 13px; padding: 15px; align-content: start; }
+.task-panel {
+  display: grid;
+  gap: 13px;
+  padding: 15px;
+  align-content: start;
+  max-height: 100%;
+  overflow: auto;
+}
 
 .panel-title {
   display: flex; align-items: center; justify-content: space-between;
@@ -671,10 +692,21 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+  height: 100%;
+  min-height: 0;
 }
-.mini-schedule, .mini-list { min-height: 590px; padding: 16px; }
+.mini-schedule, .mini-list {
+  min-height: 0;
+  height: 100%;
+  padding: 16px;
+}
 .mini-schedule { display: flex; flex-direction: column; }
+.mini-list {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
 .mini-title {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 14px;
@@ -730,6 +762,8 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   grid-template-columns: 58px minmax(0, 1fr);
   overflow-y: auto;
   overflow-x: hidden;
+  min-height: 0;
+  overscroll-behavior: contain;
   border-radius: 15px;
   scrollbar-gutter: stable;
   border: 1px solid var(--border);
@@ -788,6 +822,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   display: block; margin-top: 6px;
   color: var(--muted);
 }
+.mini-list > .empty-state + .soft-note { margin-top: 16px; }
 
 /* ------------------------------ Add flow ------------------------------ */
 
@@ -796,6 +831,16 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 18px;
   align-items: start;
+}
+
+.preview-task {
+  align-items: start;
+  background: oklch(99% 0.008 70 / 0.8);
+}
+.preview-task .task-meta {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid oklch(90% 0.012 70);
 }
 .add-stage {
   min-height: 598px;

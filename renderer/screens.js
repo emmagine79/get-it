@@ -297,7 +297,7 @@ export function renderSchedule(root, state) {
   const markup = html`
     <div class="schedule-grid">
       <div class="panel timeline-pane">
-        <div class="timeline-scroll" data-role="schedule-scroll">
+        <div class="timeline-scroll" data-role="schedule-scroll" data-scroll-lock>
           <div class="time-rail">${timeRailHTML()}</div>
           <div class="timeline" id="dropZone" aria-label="Schedule timeline">
             <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClockShort(state.nowMinutes)}</div>
@@ -446,7 +446,7 @@ export function renderBridge(root, state) {
             `)}
           </div>
         ` : ''}
-        <div class="mini-scroll" data-role="bridge-scroll">
+        <div class="mini-scroll" data-role="bridge-scroll" data-scroll-lock>
           <div class="mini-time-rail" aria-hidden="true">${miniTimeRailHTML()}</div>
           <div class="mini-track" id="bridgeDropZone">
             ${events.map((e) => {
@@ -593,22 +593,24 @@ export function renderAdd(root, state) {
         </form>
       </div>
       <aside class="panel task-panel">
-        <div class="panel-title"><h3>Inline preview</h3><span class="count">live</span></div>
+        <div class="panel-title"><h3>Preview</h3><span class="count">live</span></div>
         ${softNoteHTML('What sticks', 'Mode and bucket persist on the task — Maybe lives in its own muted area, blocks land on the schedule, buckets show as pill labels.')}
-        <article class="task">
+        <article class="task preview-task">
           <span class="check"></span>
           <div class="body" data-role="preview-body">
             <h3 data-role="preview-title">${d.title || 'New task title'}</h3>
             <p data-role="preview-sub">${previewSubtitle(d)}</p>
-            ${d.mode === 'maybe' ? html`<span class="task-badge">maybe</span>` : ''}
-            ${d.mode === 'block' ? html`<span class="task-badge">time block</span>` : ''}
+            <div class="task-meta" data-role="preview-meta">
+              ${d.mode === 'maybe' ? html`<span class="task-badge">maybe</span>` : ''}
+              ${d.mode === 'block' ? html`<span class="task-badge">time block</span>` : ''}
+              ${tagsHTML({
+                tags: normalizeTags([
+                  ...normalizeTags(d.tags),
+                  ...(d.bucket && d.bucket !== 'list' ? [d.bucket] : []),
+                ]),
+              })}
+            </div>
           </div>
-          ${tagsHTML({
-            tags: normalizeTags([
-              ...normalizeTags(d.tags),
-              ...(d.bucket && d.bucket !== 'list' ? [d.bucket] : []),
-            ]),
-          })}
         </article>
       </aside>
     </div>
