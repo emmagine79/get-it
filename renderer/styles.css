@@ -1,4 +1,6 @@
 :root {
+  color-scheme: light;
+
   --bg:      oklch(97% 0.018 70);
   --surface: oklch(99% 0.008 70);
   --fg:      oklch(22% 0.02 50);
@@ -31,6 +33,20 @@
   --end-hour: 19;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg:      oklch(18% 0.018 55);
+  --surface: oklch(22% 0.018 60);
+  --fg:      oklch(94% 0.012 72);
+  --muted:   oklch(74% 0.018 72);
+  --border:  oklch(37% 0.018 62);
+  --accent:  oklch(66% 0.11 30);
+
+  --shadow:      0 20px 60px oklch(0% 0 0 / 0.34);
+  --soft-shadow: 0 10px 35px oklch(0% 0 0 / 0.24);
+}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -52,6 +68,90 @@ button, input, textarea { font: inherit; }
 input, textarea { user-select: text; }
 
 h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0; }
+
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 12% 0%, oklch(36% 0.045 35 / 0.45), transparent 28rem),
+    linear-gradient(135deg, var(--bg), oklch(15% 0.014 70));
+}
+:root[data-theme="dark"] .desktop {
+  background: color-mix(in oklch, var(--surface) 88%, black);
+}
+:root[data-theme="dark"] .sidebar {
+  background: oklch(17% 0.016 60 / 0.94);
+}
+:root[data-theme="dark"] .main {
+  background:
+    linear-gradient(90deg, oklch(24% 0.015 62 / 0.72), transparent 42%),
+    oklch(19% 0.014 64);
+}
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .modal,
+:root[data-theme="dark"] .task,
+:root[data-theme="dark"] .cal-mini,
+:root[data-theme="dark"] .button,
+:root[data-theme="dark"] .input {
+  background: oklch(24% 0.016 62 / 0.82);
+}
+:root[data-theme="dark"] .tab:hover,
+:root[data-theme="dark"] .tab.active,
+:root[data-theme="dark"] .segmented button.active {
+  background: oklch(28% 0.018 62 / 0.9);
+  box-shadow: 0 8px 22px oklch(0% 0 0 / 0.18);
+}
+:root[data-theme="dark"] .tab-icon,
+:root[data-theme="dark"] .window-controls,
+:root[data-theme="dark"] .segmented {
+  background: oklch(28% 0.015 62 / 0.82);
+}
+:root[data-theme="dark"] .tab.active .tab-icon {
+  background: oklch(38% 0.05 35 / 0.88);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .timeline,
+:root[data-theme="dark"] .mini-track,
+:root[data-theme="dark"] .mini-scroll {
+  background-color: oklch(20% 0.012 64 / 0.84);
+  background-image: repeating-linear-gradient(to bottom, oklch(20% 0.012 64), oklch(20% 0.012 64) calc(var(--hour-height) - 1px), var(--border) var(--hour-height));
+}
+:root[data-theme="dark"] .time-rail,
+:root[data-theme="dark"] .mini-time-rail {
+  background: oklch(19% 0.012 64 / 0.88);
+}
+:root[data-theme="dark"] .task.scheduled,
+:root[data-theme="dark"] .block.planned,
+:root[data-theme="dark"] .mini-block.planned,
+:root[data-theme="dark"] .mini-agenda-item.planned {
+  background: oklch(38% 0.042 75);
+}
+:root[data-theme="dark"] .soft-note,
+:root[data-theme="dark"] .bridge-card,
+:root[data-theme="dark"] .not-connected {
+  background: oklch(28% 0.026 76 / 0.9);
+  border-color: oklch(42% 0.026 76);
+}
+:root[data-theme="dark"] .empty-state {
+  background: oklch(22% 0.014 62 / 0.72);
+}
+:root[data-theme="dark"] .choice {
+  background: oklch(25% 0.016 62 / 0.9);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .choice:hover {
+  background: oklch(31% 0.018 62 / 0.92);
+}
+:root[data-theme="dark"] .choice.selected {
+  border-color: oklch(67% 0.09 32);
+  background: oklch(38% 0.052 35 / 0.9);
+}
+:root[data-theme="dark"] .tag,
+:root[data-theme="dark"] .task-badge {
+  background: oklch(34% 0.02 62);
+  color: var(--fg);
+}
+:root[data-theme="dark"] .modal-body .input {
+  background: oklch(24% 0.016 62 / 0.82);
+}
 
 /* ------------------------------ Desktop frame ------------------------------ */
 
@@ -275,6 +375,26 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
 .button:hover { transform: translateY(-1px); background: white; }
 .button.primary { color: white; border-color: transparent; background: var(--accent); }
 .button.ghost { background: transparent; }
+
+.theme-toggle {
+  width: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.theme-toggle-glyph {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--fg);
+  box-shadow: inset -6px -4px 0 var(--surface);
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+:root[data-theme="dark"] .theme-toggle-glyph {
+  transform: rotate(-18deg);
+  background: oklch(88% 0.08 92);
+  box-shadow: 0 0 0 5px oklch(88% 0.08 92 / 0.14);
+}
 
 /* ------------------------------ Window controls ------------------------------ */
 

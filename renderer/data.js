@@ -20,9 +20,10 @@ export const PALETTE = [
 ];
 
 export const sampleData = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   currentScreen: 'connect',
   hasCompletedFirstRun: false,
+  theme: 'light',
 
   // Computed at boot in state.js so the date always matches the system clock.
   date: '',

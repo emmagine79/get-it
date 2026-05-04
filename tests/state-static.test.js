@@ -10,10 +10,20 @@ test('state stores task history for later completed and reviewed task views', ()
   const data = read('renderer/data.js');
   const state = read('renderer/state.js');
 
-  assert.match(data, /schemaVersion:\s*4/);
+  assert.match(data, /schemaVersion:\s*5/);
   assert.match(data, /taskHistory:\s*\[\]/);
   assert.match(state, /function appendTaskHistory/);
   assert.match(state, /patch\.done \? 'done' : 'reopened'/);
   assert.match(state, /'review'/);
   assert.match(state, /export function clearReviewDecision/);
+});
+
+test('state stores the selected color theme as a persisted preference', () => {
+  const data = read('renderer/data.js');
+  const state = read('renderer/state.js');
+
+  assert.match(data, /schemaVersion:\s*5/);
+  assert.match(data, /theme:\s*'light'/);
+  assert.match(state, /parsed\.theme = 'light'/);
+  assert.doesNotMatch(state, /const \{[^}]*theme[^}]*\} = state/);
 });

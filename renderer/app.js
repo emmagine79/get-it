@@ -31,6 +31,7 @@ function renderCurrentScreen() {
   const def = SCREENS[id];
   if (!def) return;
   const state = getState();
+  applyTheme(state.theme);
 
   for (const key of Object.keys(SCREENS)) {
     const el = document.getElementById(key);
@@ -62,6 +63,8 @@ function renderTopbarActions(id) {
     setHTML(topbarActionsNode, '');
     return;
   }
+  const theme = getState().theme === 'dark' ? 'dark' : 'light';
+  const nextThemeLabel = theme === 'dark' ? 'light' : 'dark';
   const actions = [];
   if (id !== 'bridge') {
     actions.push(html`<button class="button" data-screen-target="bridge">Split view</button>`);
@@ -69,6 +72,15 @@ function renderTopbarActions(id) {
   if (id !== 'add') {
     actions.push(html`<button class="button primary" data-screen-target="add">Quick add</button>`);
   }
+  actions.push(html`
+    <button class="button theme-toggle"
+            type="button"
+            data-action="toggle-theme"
+            aria-label="Switch to ${nextThemeLabel} mode"
+            title="Switch to ${nextThemeLabel} mode">
+      <span class="theme-toggle-glyph" aria-hidden="true"></span>
+    </button>
+  `);
   setHTML(topbarActionsNode, html`${actions}`);
 }
 
@@ -101,6 +113,12 @@ function bindContainedWheelScroll() {
     if (movingPastTop || movingPastBottom) event.preventDefault();
     event.stopPropagation();
   }, { passive: false });
+}
+
+function applyTheme(theme) {
+  const next = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  document.documentElement.style.colorScheme = next;
 }
 
 // ------------------------------ Toast ------------------------------
@@ -180,8 +198,18 @@ async function bootGoogleStatus() {
 
 function init() {
   bindContainedWheelScroll();
+  applyTheme(getState().theme);
 
   document.body.addEventListener('click', (event) => {
+    const action = event.target.closest('[data-action]');
+    if (action?.dataset.action === 'toggle-theme') {
+      setState((state) => ({
+        ...state,
+        theme: state.theme === 'dark' ? 'light' : 'dark',
+      }));
+      return;
+    }
+
     const trigger = event.target.closest('[data-screen], [data-screen-target]');
     if (!trigger) return;
     const screen = trigger.dataset.screen || trigger.dataset.screenTarget;

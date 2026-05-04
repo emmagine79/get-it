@@ -14,6 +14,18 @@ test('topbar actions are rendered from current screen context', () => {
   assert.match(app, /id !== 'add'/);
 });
 
+test('topbar includes a compact persisted dark mode toggle', () => {
+  const app = read('renderer/app.js');
+  const css = read('renderer/styles.css');
+
+  assert.match(app, /function applyTheme\(theme\)/);
+  assert.match(app, /document\.documentElement\.dataset\.theme/);
+  assert.match(app, /data-action="toggle-theme"/);
+  assert.match(app, /theme === 'dark' \? 'light' : 'dark'/);
+  assert.match(css, /:root\[data-theme="dark"\]/);
+  assert.match(css, /\.theme-toggle/);
+});
+
 test('completed first-run state removes onboarding from primary navigation', () => {
   const app = read('renderer/app.js');
   const css = read('renderer/styles.css');
