@@ -56,6 +56,14 @@ test('dark mode task editor modal keeps chrome, labels, inputs, and actions acce
   assert.match(css, /--dark-modal/);
 });
 
+test('task editor modal rebinds controls after switching modes', () => {
+  const screens = read('renderer/screens.js');
+
+  assert.match(screens, /function bindTaskEditorForm/);
+  assert.match(screens, /replace\(buildBody\(\)\)/);
+  assert.match(screens, /bindTaskEditorForm\(modalEl,\s*\{ close,\s*replace \}/);
+});
+
 test('completed first-run state removes onboarding from primary navigation', () => {
   const app = read('renderer/app.js');
   const css = read('renderer/styles.css');
@@ -133,6 +141,7 @@ test('split view keeps its helper note visually separated from the empty list', 
   const css = read('renderer/styles.css');
 
   assert.match(css, /\.mini-list\s*>\s*\.empty-state\s*\+\s*\.soft-note/);
+  assert.match(css, /\.mini-list\s*>\s*\.task\s*\+\s*\.soft-note/);
   assert.match(css, /margin-top:\s*16px/);
 });
 

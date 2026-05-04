@@ -1029,7 +1029,8 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   display: block; margin-top: 6px;
   color: var(--muted);
 }
-.mini-list > .empty-state + .soft-note { margin-top: 16px; }
+.mini-list > .empty-state + .soft-note,
+.mini-list > .task + .soft-note { margin-top: 16px; }
 
 /* ------------------------------ Add flow ------------------------------ */
 

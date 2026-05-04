@@ -1078,50 +1078,56 @@ function showTaskEditor(task) {
     title: 'Edit task',
     bodyHTML: buildBody(),
     onMount: (modalEl, { close, replace }) => {
-      const form = modalEl.querySelector('form');
+      function bindTaskEditorForm(modalEl, { close, replace }) {
+        const form = modalEl.querySelector('form');
+        if (!form) return;
 
-      form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          // Capture other field edits before re-render.
-          draft.title = form.querySelector('[name="title"]').value;
-          draft.note  = form.querySelector('[name="note"]').value;
-          draft.tags  = form.querySelector('[name="tags"]').value;
-          draft.start = form.querySelector('[name="start"]')?.value || draft.start;
-          draft.end   = form.querySelector('[name="end"]')?.value   || draft.end;
-          draft.mode  = btn.dataset.value;
-          if (draft.mode === 'block' && !draft.start) { draft.start = '09:00'; draft.end = '09:30'; }
-          replace(buildBody());
+        form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            // Capture other field edits before re-render.
+            draft.title = form.querySelector('[name="title"]').value;
+            draft.note  = form.querySelector('[name="note"]').value;
+            draft.tags  = form.querySelector('[name="tags"]').value;
+            draft.start = form.querySelector('[name="start"]')?.value || draft.start;
+            draft.end   = form.querySelector('[name="end"]')?.value   || draft.end;
+            draft.mode  = btn.dataset.value;
+            if (draft.mode === 'block' && !draft.start) { draft.start = '09:00'; draft.end = '09:30'; }
+            replace(buildBody());
+            bindTaskEditorForm(modalEl, { close, replace });
+          });
         });
-      });
 
-      form.querySelector('[data-action="cancel"]').addEventListener('click', close);
-      form.querySelector('[data-action="delete"]').addEventListener('click', () => {
-        deleteTask(task.id);
-        close();
-        window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Task removed.' }));
-      });
+        form.querySelector('[data-action="cancel"]').addEventListener('click', close);
+        form.querySelector('[data-action="delete"]').addEventListener('click', () => {
+          deleteTask(task.id);
+          close();
+          window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Task removed.' }));
+        });
 
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const title = form.querySelector('[name="title"]').value.trim();
-        if (!title) return;
-        const patch = {
-          title,
-          note: form.querySelector('[name="note"]').value,
-          tags: normalizeTags(form.querySelector('[name="tags"]').value),
-          tag: undefined,
-          mode: draft.mode,
-        };
-        if (draft.mode === 'block') {
-          patch.start = form.querySelector('[name="start"]').value;
-          patch.end   = form.querySelector('[name="end"]').value;
-        } else {
-          patch.start = undefined;
-          patch.end   = undefined;
-        }
-        updateTask(task.id, patch);
-        close();
-      });
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const title = form.querySelector('[name="title"]').value.trim();
+          if (!title) return;
+          const patch = {
+            title,
+            note: form.querySelector('[name="note"]').value,
+            tags: normalizeTags(form.querySelector('[name="tags"]').value),
+            tag: undefined,
+            mode: draft.mode,
+          };
+          if (draft.mode === 'block') {
+            patch.start = form.querySelector('[name="start"]').value;
+            patch.end   = form.querySelector('[name="end"]').value;
+          } else {
+            patch.start = undefined;
+            patch.end   = undefined;
+          }
+          updateTask(task.id, patch);
+          close();
+        });
+      }
+
+      bindTaskEditorForm(modalEl, { close, replace });
     },
   });
 }
