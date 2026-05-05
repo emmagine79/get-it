@@ -1,6 +1,6 @@
 {
   "name": "get-it",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "A calm day-planning desktop app for neurodivergent planners.",
   "main": "main.js",
@@ -65,7 +65,8 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
     }
   },
   "dependencies": {
