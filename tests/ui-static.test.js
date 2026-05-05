@@ -6,6 +6,31 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
+test('Gentle Day branding keeps existing app data identity stable', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const index = read('renderer/index.html');
+  const state = read('renderer/state.js');
+
+  assert.equal(pkg.name, 'get-it');
+  assert.equal(pkg.version, '0.1.1');
+  assert.equal(pkg.build.appId, 'com.emmagine.getit');
+  assert.equal(pkg.build.productName, 'Gentle Day');
+  assert.match(pkg.build.mac.icon, /build\/icon\.icns/);
+  assert.match(pkg.build.win.icon, /build\/icon\.ico/);
+  assert.match(index, /<h1>Gentle Day<\/h1>/);
+  assert.match(index, /<div class="brand-mark" aria-hidden="true"><\/div>/);
+  assert.match(state, /get-it-state-v2/);
+});
+
+test('Gentle Day sidebar logo adapts to light and dark themes', () => {
+  const css = read('renderer/styles.css');
+
+  assert.match(css, /\.brand-mark/);
+  assert.match(css, /gentle-day-icon-light\.svg/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.brand-mark/);
+  assert.match(css, /gentle-day-icon\.svg/);
+});
+
 test('topbar actions are rendered from current screen context', () => {
   const app = read('renderer/app.js');
 

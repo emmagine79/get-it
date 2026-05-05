@@ -2,7 +2,15 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const google = require('./google.js');
 
+const LEGACY_USER_DATA_NAME = 'get-it';
+
 let mainWindow = null;
+
+function preserveUserDataPath() {
+  // Keep v0.1.0 data and Google tokens visible after the public rename to
+  // Gentle Day. Electron derives userData from the product name unless pinned.
+  app.setPath('userData', path.join(app.getPath('appData'), LEGACY_USER_DATA_NAME));
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -13,7 +21,8 @@ function createWindow() {
     frame: false,
     show: false,
     backgroundColor: '#f5efe6',
-    title: 'Get It',
+    title: 'Gentle Day',
+    icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -35,6 +44,8 @@ function createWindow() {
   mainWindow.on('unmaximize', sendState);
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+preserveUserDataPath();
 
 app.whenReady().then(async () => {
   // Window controls.

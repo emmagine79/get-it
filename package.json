@@ -1,6 +1,6 @@
 {
   "name": "get-it",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A calm day-planning desktop app for neurodivergent planners.",
   "main": "main.js",
@@ -14,7 +14,7 @@
   },
   "build": {
     "appId": "com.emmagine.getit",
-    "productName": "Get It",
+    "productName": "Gentle Day",
     "directories": {
       "output": "release"
     },
@@ -22,11 +22,15 @@
       "main.js",
       "preload.js",
       "google.js",
+      "build/icon.*",
+      "assets/**/*",
       "renderer/**/*",
       "package.json"
     ],
     "asar": true,
+    "icon": "build/icon.png",
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -41,10 +45,11 @@
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "artifactName": "Gentle.Day-${version}-${arch}.${ext}",
       "identity": null
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -53,7 +58,7 @@
           ]
         }
       ],
-      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+      "artifactName": "Gentle.Day-Setup-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
