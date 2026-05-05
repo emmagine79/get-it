@@ -4,6 +4,7 @@ node_modules/
 # Build output (electron-builder, electron-forge)
 dist/
 out/
+release/
 
 # Logs
 npm-debug.log*

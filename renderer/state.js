@@ -28,6 +28,10 @@ function migrate(parsed) {
     parsed.taskHistory = [];
   }
 
+  if ((parsed.schemaVersion || 1) < 5 || !['light', 'dark'].includes(parsed.theme)) {
+    parsed.theme = 'light';
+  }
+
   parsed.schemaVersion = sampleData.schemaVersion;
   return parsed;
 }

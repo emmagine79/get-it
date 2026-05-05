@@ -297,7 +297,7 @@ export function renderSchedule(root, state) {
   const markup = html`
     <div class="schedule-grid">
       <div class="panel timeline-pane">
-        <div class="timeline-scroll" data-role="schedule-scroll">
+        <div class="timeline-scroll" data-role="schedule-scroll" data-scroll-lock>
           <div class="time-rail">${timeRailHTML()}</div>
           <div class="timeline" id="dropZone" aria-label="Schedule timeline">
             <div class="time-now" style="top:${raw(minutesToTop(state.nowMinutes) + 'px')};">${fmtClockShort(state.nowMinutes)}</div>
@@ -446,7 +446,7 @@ export function renderBridge(root, state) {
             `)}
           </div>
         ` : ''}
-        <div class="mini-scroll" data-role="bridge-scroll">
+        <div class="mini-scroll" data-role="bridge-scroll" data-scroll-lock>
           <div class="mini-time-rail" aria-hidden="true">${miniTimeRailHTML()}</div>
           <div class="mini-track" id="bridgeDropZone">
             ${events.map((e) => {
@@ -593,22 +593,24 @@ export function renderAdd(root, state) {
         </form>
       </div>
       <aside class="panel task-panel">
-        <div class="panel-title"><h3>Inline preview</h3><span class="count">live</span></div>
+        <div class="panel-title"><h3>Preview</h3><span class="count">live</span></div>
         ${softNoteHTML('What sticks', 'Mode and bucket persist on the task — Maybe lives in its own muted area, blocks land on the schedule, buckets show as pill labels.')}
-        <article class="task">
+        <article class="task preview-task">
           <span class="check"></span>
           <div class="body" data-role="preview-body">
             <h3 data-role="preview-title">${d.title || 'New task title'}</h3>
             <p data-role="preview-sub">${previewSubtitle(d)}</p>
-            ${d.mode === 'maybe' ? html`<span class="task-badge">maybe</span>` : ''}
-            ${d.mode === 'block' ? html`<span class="task-badge">time block</span>` : ''}
+            <div class="task-meta" data-role="preview-meta">
+              ${d.mode === 'maybe' ? html`<span class="task-badge">maybe</span>` : ''}
+              ${d.mode === 'block' ? html`<span class="task-badge">time block</span>` : ''}
+              ${tagsHTML({
+                tags: normalizeTags([
+                  ...normalizeTags(d.tags),
+                  ...(d.bucket && d.bucket !== 'list' ? [d.bucket] : []),
+                ]),
+              })}
+            </div>
           </div>
-          ${tagsHTML({
-            tags: normalizeTags([
-              ...normalizeTags(d.tags),
-              ...(d.bucket && d.bucket !== 'list' ? [d.bucket] : []),
-            ]),
-          })}
         </article>
       </aside>
     </div>
@@ -1076,50 +1078,56 @@ function showTaskEditor(task) {
     title: 'Edit task',
     bodyHTML: buildBody(),
     onMount: (modalEl, { close, replace }) => {
-      const form = modalEl.querySelector('form');
+      function bindTaskEditorForm(modalEl, { close, replace }) {
+        const form = modalEl.querySelector('form');
+        if (!form) return;
 
-      form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          // Capture other field edits before re-render.
-          draft.title = form.querySelector('[name="title"]').value;
-          draft.note  = form.querySelector('[name="note"]').value;
-          draft.tags  = form.querySelector('[name="tags"]').value;
-          draft.start = form.querySelector('[name="start"]')?.value || draft.start;
-          draft.end   = form.querySelector('[name="end"]')?.value   || draft.end;
-          draft.mode  = btn.dataset.value;
-          if (draft.mode === 'block' && !draft.start) { draft.start = '09:00'; draft.end = '09:30'; }
-          replace(buildBody());
+        form.querySelectorAll('[data-group="mode"] button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            // Capture other field edits before re-render.
+            draft.title = form.querySelector('[name="title"]').value;
+            draft.note  = form.querySelector('[name="note"]').value;
+            draft.tags  = form.querySelector('[name="tags"]').value;
+            draft.start = form.querySelector('[name="start"]')?.value || draft.start;
+            draft.end   = form.querySelector('[name="end"]')?.value   || draft.end;
+            draft.mode  = btn.dataset.value;
+            if (draft.mode === 'block' && !draft.start) { draft.start = '09:00'; draft.end = '09:30'; }
+            replace(buildBody());
+            bindTaskEditorForm(modalEl, { close, replace });
+          });
         });
-      });
 
-      form.querySelector('[data-action="cancel"]').addEventListener('click', close);
-      form.querySelector('[data-action="delete"]').addEventListener('click', () => {
-        deleteTask(task.id);
-        close();
-        window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Task removed.' }));
-      });
+        form.querySelector('[data-action="cancel"]').addEventListener('click', close);
+        form.querySelector('[data-action="delete"]').addEventListener('click', () => {
+          deleteTask(task.id);
+          close();
+          window.dispatchEvent(new CustomEvent('app:toast', { detail: 'Task removed.' }));
+        });
 
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const title = form.querySelector('[name="title"]').value.trim();
-        if (!title) return;
-        const patch = {
-          title,
-          note: form.querySelector('[name="note"]').value,
-          tags: normalizeTags(form.querySelector('[name="tags"]').value),
-          tag: undefined,
-          mode: draft.mode,
-        };
-        if (draft.mode === 'block') {
-          patch.start = form.querySelector('[name="start"]').value;
-          patch.end   = form.querySelector('[name="end"]').value;
-        } else {
-          patch.start = undefined;
-          patch.end   = undefined;
-        }
-        updateTask(task.id, patch);
-        close();
-      });
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const title = form.querySelector('[name="title"]').value.trim();
+          if (!title) return;
+          const patch = {
+            title,
+            note: form.querySelector('[name="note"]').value,
+            tags: normalizeTags(form.querySelector('[name="tags"]').value),
+            tag: undefined,
+            mode: draft.mode,
+          };
+          if (draft.mode === 'block') {
+            patch.start = form.querySelector('[name="start"]').value;
+            patch.end   = form.querySelector('[name="end"]').value;
+          } else {
+            patch.start = undefined;
+            patch.end   = undefined;
+          }
+          updateTask(task.id, patch);
+          close();
+        });
+      }
+
+      bindTaskEditorForm(modalEl, { close, replace });
     },
   });
 }
