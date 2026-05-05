@@ -12,7 +12,7 @@ test('Gentle Day branding keeps existing app data identity stable', () => {
   const state = read('renderer/state.js');
 
   assert.equal(pkg.name, 'get-it');
-  assert.equal(pkg.version, '0.1.1');
+  assert.equal(pkg.version, '0.1.2');
   assert.equal(pkg.build.appId, 'com.emmagine.getit');
   assert.equal(pkg.build.productName, 'Gentle Day');
   assert.match(pkg.build.mac.icon, /build\/icon\.icns/);
@@ -24,11 +24,32 @@ test('Gentle Day branding keeps existing app data identity stable', () => {
 
 test('Gentle Day sidebar logo adapts to light and dark themes', () => {
   const css = read('renderer/styles.css');
+  const iconAssets = [
+    'assets/gentle-day-app-icon-dark.png',
+    'assets/gentle-day-app-icon-light.png',
+    'assets/gentle-day-mark-dark.png',
+    'assets/gentle-day-mark-light.png',
+    'build/icon.icns',
+    'build/icon.ico',
+    'build/icon.png',
+  ];
 
   assert.match(css, /\.brand-mark/);
-  assert.match(css, /gentle-day-icon-light\.svg/);
+  assert.match(css, /gentle-day-mark-light\.png/);
   assert.match(css, /:root\[data-theme="dark"\]\s+\.brand-mark/);
-  assert.match(css, /gentle-day-icon\.svg/);
+  assert.match(css, /gentle-day-mark-dark\.png/);
+  for (const asset of iconAssets) {
+    assert.ok(fs.existsSync(path.join(root, asset)), `${asset} should exist`);
+  }
+});
+
+test('Gentle Day wordmark stays on one line in the sidebar brand', () => {
+  const css = read('renderer/styles.css');
+
+  assert.match(css, /grid-template-columns:\s*272px 1fr/);
+  assert.match(css, /\.brand h1/);
+  assert.match(css, /white-space:\s*nowrap/);
+  assert.match(css, /\.brand p[^}]*white-space:\s*nowrap/s);
 });
 
 test('topbar actions are rendered from current screen context', () => {

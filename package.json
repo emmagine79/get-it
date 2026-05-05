@@ -1,6 +1,6 @@
 {
   "name": "get-it",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A calm day-planning desktop app for neurodivergent planners.",
   "main": "main.js",

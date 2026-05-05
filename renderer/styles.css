@@ -247,7 +247,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   min-width: 1180px;
   height: 100vh;
   display: grid;
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 272px 1fr;
   background: color-mix(in oklch, var(--surface) 90%, white);
 }
 
@@ -261,22 +261,28 @@ h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: 0; margin: 0;
   overflow-y: auto;
 }
 
-.brand { display: flex; align-items: center; gap: 14px; padding: 6px 4px 4px; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 6px 4px 4px; }
 .brand-mark {
   width: 48px; height: 48px;
   display: grid; place-items: center;
   flex: 0 0 48px;
   border-radius: 15px;
   overflow: hidden;
-  background: center / cover no-repeat url("../assets/gentle-day-icon-light.svg");
+  background: center / cover no-repeat url("../assets/gentle-day-mark-light.png");
   box-shadow: 0 10px 22px oklch(60% 0.04 45 / 0.16), inset 0 1px 0 oklch(100% 0 0 / 0.32);
 }
 :root[data-theme="dark"] .brand-mark {
-  background-image: url("../assets/gentle-day-icon.svg");
+  background-image: url("../assets/gentle-day-mark-dark.png");
   box-shadow: 0 12px 24px oklch(0% 0 0 / 0.34), inset 0 1px 0 oklch(100% 0 0 / 0.16);
 }
-.brand h1 { font-size: 27px; line-height: 1; font-weight: 700; }
-.brand p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.brand > div:last-child { min-width: 0; }
+.brand h1 {
+  font-size: 30px;
+  line-height: 0.95;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.brand p { margin: 5px 0 0; color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 .nav { display: grid; gap: 7px; }
 .tab.is-hidden { display: none !important; }
