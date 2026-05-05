@@ -10,13 +10,13 @@ Gentle Day is a calm desktop day planner for people who want structure without b
 
 The latest installers are on the official GitHub Release:
 
-[Download Gentle Day v0.1.1](https://github.com/emmagine79/get-it/releases/tag/v0.1.1)
+[Download Gentle Day v0.1.2](https://github.com/emmagine79/get-it/releases/tag/v0.1.2)
 
 | Platform | File |
 | --- | --- |
-| Windows | `Gentle.Day-Setup-0.1.1-x64.exe` |
-| macOS | `Gentle.Day-0.1.1-universal.dmg` |
-| macOS alternate | `Gentle.Day-0.1.1-universal.zip` |
+| Windows | `Gentle.Day-Setup-0.1.2-x64.exe` |
+| macOS | `Gentle.Day-0.1.2-universal.dmg` |
+| macOS alternate | `Gentle.Day-0.1.2-universal.zip` |
 
 The macOS build is universal and supports both Apple Silicon and Intel Macs. The current builds are not code-signed yet, so Windows SmartScreen or macOS Gatekeeper may ask for confirmation the first time you open them.
 
@@ -114,4 +114,4 @@ Generated installers are written to `release/`.
 
 ## Release Notes
 
-`v0.1.1` introduces the Gentle Day name and app icon while preserving the existing local data identity from `v0.1.0`.
+`v0.1.2` replaces the app and in-app icons with the approved Gentle Day artwork while preserving the existing local data identity from earlier releases.
