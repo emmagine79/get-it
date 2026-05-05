@@ -1,28 +1,28 @@
-# Get It
+# Gentle Day
 
 **Today, softly planned.**
 
-Get It is a calm desktop day planner for people who want structure without being boxed in. It keeps your day visible as a schedule, a list, or both side by side, with Google Calendar events as read-only anchors and your own tasks free to move.
+Gentle Day is a calm desktop day planner for people who want structure without being boxed in. It keeps your day visible as a schedule, a list, or both side by side, with Google Calendar events as read-only anchors and your own tasks free to move.
 
-![Get It schedule view](docs/readme/schedule.png)
+![Gentle Day schedule view](docs/readme/schedule.png)
 
 ## Download
 
 The latest installers are on the official GitHub Release:
 
-[Download Get It v0.1.0](https://github.com/emmagine79/get-it/releases/tag/v0.1.0)
+[Download Gentle Day v0.1.1](https://github.com/emmagine79/get-it/releases/tag/v0.1.1)
 
 | Platform | File |
 | --- | --- |
-| Windows | `Get.It-Setup-0.1.0-x64.exe` |
-| macOS | `Get.It-0.1.0-universal.dmg` |
-| macOS alternate | `Get.It-0.1.0-universal.zip` |
+| Windows | `Gentle.Day-Setup-0.1.1-x64.exe` |
+| macOS | `Gentle.Day-0.1.1-universal.dmg` |
+| macOS alternate | `Gentle.Day-0.1.1-universal.zip` |
 
 The macOS build is universal and supports both Apple Silicon and Intel Macs. The current builds are not code-signed yet, so Windows SmartScreen or macOS Gatekeeper may ask for confirmation the first time you open them.
 
 ## What It Feels Like
 
-Get It treats the schedule as a sketch, not a contract.
+Gentle Day treats the schedule as a sketch, not a contract.
 
 - **Schedule** gives the day a shape with soft time blocks, calendar context, drag-to-reschedule, and resize handles for changing duration.
 - **List** keeps untimed work loose, so tasks can exist without becoming appointments.
@@ -31,28 +31,28 @@ Get It treats the schedule as a sketch, not a contract.
 - **End-of-day review** gives unfinished work a soft landing: done enough, roll to tomorrow, or partial progress with undo.
 - **Dark mode** is built in and persists between launches.
 
-![Both views in Get It](docs/readme/both-views.png)
+![Both views in Gentle Day](docs/readme/both-views.png)
 
 ## Designed Around Real Days
 
-Calendar events are context, not clutter. Connect Google Calendar and meetings appear as read-only blocks that help you see the shape of the day. Your own tasks stay separate, movable, and editable inside Get It.
+Calendar events are context, not clutter. Connect Google Calendar and meetings appear as read-only blocks that help you see the shape of the day. Your own tasks stay separate, movable, and editable inside Gentle Day.
 
 At the end of the day, review is deliberately gentle. You can mark what was finished, roll something forward, or record partial progress without pretending the day went perfectly.
 
-![Get It dark end-of-day review](docs/readme/review-dark.png)
+![Gentle Day dark end-of-day review](docs/readme/review-dark.png)
 
 ## Privacy And Data
 
-Get It stores your planner data locally on your computer.
+Gentle Day stores your planner data locally on your computer.
 
 - Tasks, theme, calendar colors, and review history are stored in app local storage.
 - Google OAuth tokens stay in the Electron main process user-data folder as `google-tokens.json`.
-- Calendar events are read-only inside Get It. Edit them in Google Calendar.
+- Calendar events are read-only inside Gentle Day. Edit them in Google Calendar.
 - Uninstalling or updating the app is configured not to delete app data.
 
 ## Google Calendar
 
-Google Calendar is optional. You can skip it and use Get It as a local planner.
+Google Calendar is optional. You can skip it and use Gentle Day as a local planner.
 
 To connect calendar sync in development or a custom build, create a Google Cloud OAuth Desktop client with the Calendar read-only scope:
 
@@ -114,4 +114,4 @@ Generated installers are written to `release/`.
 
 ## Release Notes
 
-`v0.1.0` includes the polished schedule/list experience, dark mode, review undo, duration resizing, local task history, Windows packaging, and universal macOS packaging.
+`v0.1.1` introduces the Gentle Day name and app icon while preserving the existing local data identity from `v0.1.0`.

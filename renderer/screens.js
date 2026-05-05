@@ -956,7 +956,7 @@ export function renderConnect(root, state) {
         <div>
           <div class="today-kicker"><span class="pulse"></span><span>First run</span></div>
           <h3>Bring your real day in first.</h3>
-          <p>Get It uses Google Calendar as a read-only layer, so meetings and appointments become gentle boundaries around the day you plan.</p>
+          <p>Gentle Day uses Google Calendar as a read-only layer, so meetings and appointments become gentle boundaries around the day you plan.</p>
         </div>
         <div class="choice-row">
           <button class="button primary" data-action="connect-google" ${raw(isSyncing ? 'disabled' : '')}>${isSyncing ? 'Connecting…' : 'Connect Google Calendar'}</button>
@@ -966,7 +966,7 @@ export function renderConnect(root, state) {
       </section>
       <aside class="panel preview-stack">
         <div class="permission-card">
-          <h3 style="font-size: 26px;">What Get It can do</h3>
+          <h3 style="font-size: 26px;">What Gentle Day can do</h3>
           <div class="permission-list">
             <div class="permission"><span class="check"></span><span>Show events as read-only blocks</span></div>
             <div class="permission"><span class="check"></span><span>Connect multiple calendars</span></div>
@@ -1145,7 +1145,7 @@ function showEventDetails(evt) {
         <p class="muted">${evt.allDay ? 'All day' : fmtRange(evt.start, evt.end)}</p>
         ${evt.location ? html`<p>${evt.location}</p>` : ''}
         ${evt.description ? html`<p style="white-space:pre-line;">${evt.description}</p>` : ''}
-        <p class="muted" style="margin-top:14px; font-size:12px;">Calendar events are read-only inside Get It. Edit them in Google Calendar.</p>
+        <p class="muted" style="margin-top:14px; font-size:12px;">Calendar events are read-only inside Gentle Day. Edit them in Google Calendar.</p>
       </div>
       <div class="modal-footer">
         <span style="flex:1;"></span>

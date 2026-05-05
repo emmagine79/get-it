@@ -1,4 +1,4 @@
-// Google Calendar integration for Get It.
+// Google Calendar integration for Gentle Day.
 //
 // Flow (Desktop OAuth, loopback redirect):
 //   1. We expect the user to drop a Google OAuth client JSON at
@@ -82,7 +82,7 @@ async function loadCredentials() {
   }
   if (!raw) {
     throw new Error(
-      `Missing Google OAuth credentials. Get It looked in:\n` +
+      `Missing Google OAuth credentials. Gentle Day looked in:\n` +
       `  ${candidates.join('\n  ')}\n\n` +
       `If you're setting this up for someone else, drop a credentials.json next to main.js before sharing the app folder. ` +
       `Otherwise, see the README for the one-time Google Cloud setup.`
@@ -130,18 +130,18 @@ function startCallbackServer(expectedState, timeoutMs = OAUTH_TIMEOUT_MS) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         if (error) {
           res.statusCode = 400;
-          res.end(htmlPage('Connection cancelled', `Google reported: <code>${escapeHtml(error)}</code>. You can close this tab and try again in Get It.`));
+          res.end(htmlPage('Connection cancelled', `Google reported: <code>${escapeHtml(error)}</code>. You can close this tab and try again in Gentle Day.`));
           codePromiseReject(new Error(`Google OAuth error: ${error}`));
         } else if (state !== expectedState) {
           res.statusCode = 400;
-          res.end(htmlPage('Connection rejected', 'The sign-in response did not match this connection attempt. Return to Get It and try again.'));
+          res.end(htmlPage('Connection rejected', 'The sign-in response did not match this connection attempt. Return to Gentle Day and try again.'));
           codePromiseReject(new Error('Google OAuth state mismatch. Try Connect again.'));
         } else if (!code) {
           res.statusCode = 400;
           res.end(htmlPage('No authorization code', 'The redirect did not contain a code. Try Connect again.'));
           codePromiseReject(new Error('Google OAuth callback returned no code.'));
         } else {
-          res.end(htmlPage('Connected. You can close this tab.', 'Get It is finishing up — return to the app.'));
+          res.end(htmlPage('Connected. You can close this tab.', 'Gentle Day is finishing up — return to the app.'));
           codePromiseResolve(code);
         }
       } catch (err) {
