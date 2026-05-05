@@ -46,6 +46,7 @@ test('Gentle Day sidebar logo adapts to light and dark themes', () => {
 test('Gentle Day wordmark stays on one line in the sidebar brand', () => {
   const css = read('renderer/styles.css');
 
+  assert.match(css, /grid-template-columns:\s*272px 1fr/);
   assert.match(css, /\.brand h1/);
   assert.match(css, /white-space:\s*nowrap/);
   assert.match(css, /\.brand p[^}]*white-space:\s*nowrap/s);
