@@ -12,7 +12,7 @@ test('Gentle Day branding keeps existing app data identity stable', () => {
   const state = read('renderer/state.js');
 
   assert.equal(pkg.name, 'get-it');
-  assert.equal(pkg.version, '0.1.2');
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
   assert.equal(pkg.build.appId, 'com.emmagine.getit');
   assert.equal(pkg.build.productName, 'Gentle Day');
   assert.match(pkg.build.mac.icon, /build\/icon\.icns/);

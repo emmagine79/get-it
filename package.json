@@ -1,6 +1,6 @@
 {
   "name": "get-it",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "A calm day-planning desktop app for neurodivergent planners.",
   "main": "main.js",
@@ -50,6 +50,7 @@
     },
     "win": {
       "icon": "build/icon.ico",
+      "executableName": "Get It",
       "target": [
         {
           "target": "nsis",
